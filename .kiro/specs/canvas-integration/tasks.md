@@ -79,13 +79,31 @@ requirements it satisfies.
 
 ---
 
+## Verified against the live instance (2026-08-06)
+
+Course 1 = CPSC 310, assignment 1 = HW1, token identity = "CIC Hack TA" (user 2).
+
+- Criterion ids are underscore-prefixed strings: `_1838` (Thesis Clarity), `_7746` (Use
+  of Evidence), `_3661` (Organization), `_5523` (Grammar & Mechanics), `_2293` (Citation
+  Format). Rubric id 2, 20 points total, seeded by `scripts/seed_canvas.py`.
+- Existing `rubric_assessment` write shape confirmed:
+  `{"_4887": {"rating_id": "blank", "comments": "", "points": 5.0}}`.
+- Pagination `Link` headers are present (`rel=current/first/last`).
+- Attachment URLs carry a `verifier` query param and are **pre-authorized** — sending the
+  bearer token to them is unnecessary and download works without it.
+- `pypdf` extracts cleanly from a real uploaded PDF (1 page → 3849 chars).
+- Token permissions: `manage_rubrics: true`, `manage_grades: true`,
+  `manage_students: true`, **`become_user: false`**, and `/api/v1/accounts` returns `[]`
+  (not an account admin).
+
 ## Open questions
 
-1. **Canvas API token** — needed for task 1 and everything after. A TA-or-higher token
-   from `canvas.cic.wtarit.me/profile/settings`. Nothing real can be built without it.
-2. **Does course 1's assignment have a rubric attached?** If not, the core mechanic has
-   no data. Verify first.
+1. **Admin token needed to seed submissions.** The TA token can create rubrics and write
+   grades, but cannot create users or masquerade, so it cannot submit essays on a
+   student's behalf. Either obtain an account-admin token, or have someone submit the
+   essays through the Canvas UI while logged in as each student.
+2. **Only one real submission exists** (user 3), and it is a résumé PDF containing real
+   personal data. It is excluded from fixtures and must not appear in the demo. The
+   grading queue needs ~4 essay submissions before "Student N of M" is meaningful.
 3. **Runtime — Python or Node?** Design assumes Python 3.12 (`pypdf`, `python-docx` are
    the cleaner libraries). Switch to Node + `unpdf` if the team prefers one language.
-4. **Real student PII?** If the instance holds real submissions, hackathon rules forbid
-   PII in any committed dataset — fixtures must be anonymized before commit.
