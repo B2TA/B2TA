@@ -41,21 +41,33 @@ class UploadServiceTest {
     private static final UUID SESSION_ID = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 
     @BeforeEach
-    void setUp() throws MalformedURLException {
+    void setUp() {
         awsProperties = new AwsProperties();
         awsProperties.getS3().setBucket("test-bucket");
         uploadService = new UploadService(s3Presigner, awsProperties);
+    }
 
-        // Mock the presigner to return a dummy URL
-        PresignedPutObjectRequest presignedRequest = mock(PresignedPutObjectRequest.class);
-        when(presignedRequest.url()).thenReturn(URI.create("https://test-bucket.s3.amazonaws.com/test-key").toURL());
-        when(s3Presigner.presignPutObject(any(PutObjectPresignRequest.class))).thenReturn(presignedRequest);
+    /**
+     * Stubs the presigner to return a dummy URL. Called only by tests that actually reach
+     * S3 — validation-failure tests throw first, and stubbing for them would trip
+     * Mockito's strict-stub checking.
+     */
+    private void stubPresigner() {
+        try {
+            PresignedPutObjectRequest presignedRequest = mock(PresignedPutObjectRequest.class);
+            when(presignedRequest.url())
+                    .thenReturn(URI.create("https://test-bucket.s3.amazonaws.com/test-key").toURL());
+            when(s3Presigner.presignPutObject(any(PutObjectPresignRequest.class))).thenReturn(presignedRequest);
+        } catch (MalformedURLException e) {
+            throw new IllegalStateException("Static test URL should always parse", e);
+        }
     }
 
     // --- Rubric Upload URL Tests ---
 
     @Test
     void generateRubricUploadUrl_validPdf_returnsUrlAndKey() {
+        stubPresigner();
         RubricUploadUrlRequest request = RubricUploadUrlRequest.builder()
                 .filename("rubric.pdf")
                 .size(1024L)
@@ -70,6 +82,7 @@ class UploadServiceTest {
 
     @Test
     void generateRubricUploadUrl_validCsv_returnsUrlAndKey() {
+        stubPresigner();
         RubricUploadUrlRequest request = RubricUploadUrlRequest.builder()
                 .filename("grades.CSV")
                 .size(500L)
@@ -82,6 +95,7 @@ class UploadServiceTest {
 
     @Test
     void generateRubricUploadUrl_validXlsx_returnsUrlAndKey() {
+        stubPresigner();
         RubricUploadUrlRequest request = RubricUploadUrlRequest.builder()
                 .filename("Rubric.XLSX")
                 .size(5_242_880L)
@@ -166,6 +180,7 @@ class UploadServiceTest {
 
     @Test
     void generateRubricUploadUrl_caseInsensitiveExtension_works() {
+        stubPresigner();
         RubricUploadUrlRequest request = RubricUploadUrlRequest.builder()
                 .filename("my_rubric.PdF")
                 .size(2048L)
@@ -180,6 +195,7 @@ class UploadServiceTest {
 
     @Test
     void generateSubmissionUploadUrls_validSingleFile_returnsOneUrl() {
+        stubPresigner();
         SubmissionUploadUrlsRequest request = SubmissionUploadUrlsRequest.builder()
                 .files(List.of(
                         SubmissionUploadUrlsRequest.FileUploadEntry.builder()
@@ -200,6 +216,7 @@ class UploadServiceTest {
 
     @Test
     void generateSubmissionUploadUrls_multipleFiles_returnsMultipleUrls() {
+        stubPresigner();
         SubmissionUploadUrlsRequest request = SubmissionUploadUrlsRequest.builder()
                 .files(List.of(
                         SubmissionUploadUrlsRequest.FileUploadEntry.builder()
@@ -256,6 +273,7 @@ class UploadServiceTest {
 
     @Test
     void generateSubmissionUploadUrls_invalidExtensionInBatch_throws() {
+        stubPresigner();
         SubmissionUploadUrlsRequest request = SubmissionUploadUrlsRequest.builder()
                 .files(List.of(
                         SubmissionUploadUrlsRequest.FileUploadEntry.builder()
@@ -286,6 +304,7 @@ class UploadServiceTest {
 
     @Test
     void generateSubmissionUploadUrls_zipExtension_accepted() {
+        stubPresigner();
         SubmissionUploadUrlsRequest request = SubmissionUploadUrlsRequest.builder()
                 .files(List.of(
                         SubmissionUploadUrlsRequest.FileUploadEntry.builder()
@@ -301,6 +320,7 @@ class UploadServiceTest {
 
     @Test
     void generateSubmissionUploadUrls_txtExtension_accepted() {
+        stubPresigner();
         SubmissionUploadUrlsRequest request = SubmissionUploadUrlsRequest.builder()
                 .files(List.of(
                         SubmissionUploadUrlsRequest.FileUploadEntry.builder()
@@ -315,6 +335,7 @@ class UploadServiceTest {
 
     @Test
     void generateSubmissionUploadUrls_exactly300Files_accepted() {
+        stubPresigner();
         List<SubmissionUploadUrlsRequest.FileUploadEntry> files = IntStream.rangeClosed(1, 300)
                 .mapToObj(i -> SubmissionUploadUrlsRequest.FileUploadEntry.builder()
                         .filename("file" + i + ".pdf").size(1000L).build())
@@ -331,6 +352,7 @@ class UploadServiceTest {
 
     @Test
     void generateRubricUploadUrl_objectKeyContainsTaAndSessionPrefix() {
+        stubPresigner();
         RubricUploadUrlRequest request = RubricUploadUrlRequest.builder()
                 .filename("rubric.pdf")
                 .size(1024L)

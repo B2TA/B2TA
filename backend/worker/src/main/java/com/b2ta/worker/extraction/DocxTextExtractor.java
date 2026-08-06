@@ -1,8 +1,8 @@
 package com.b2ta.worker.extraction;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.UnsupportedFileFormatException;
 import org.apache.poi.ooxml.POIXMLException;
-import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.springframework.stereotype.Component;
@@ -25,7 +25,9 @@ public class DocxTextExtractor implements FormatExtractor {
         XWPFDocument document;
         try {
             document = new XWPFDocument(inputStream);
-        } catch (POIXMLException | InvalidFormatException e) {
+        } catch (POIXMLException | UnsupportedFileFormatException e) {
+            // POIXMLException = corrupt OOXML; UnsupportedFileFormatException = not an
+            // OOXML file at all (e.g. a .doc or PDF renamed to .docx). Both unchecked.
             log.warn("Failed to parse DOCX document", e);
             return ExtractionResult.failure(ExtractionFailureReason.UNREADABLE_FILE);
         } catch (IOException e) {

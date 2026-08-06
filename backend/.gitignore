@@ -29,3 +29,6 @@ Thumbs.db
 
 # Environment
 .env
+
+# jqwik writes a run database beside each module during property tests
+.jqwik-database

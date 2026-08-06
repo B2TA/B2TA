@@ -52,8 +52,6 @@ class SubmissionServiceTest {
 
     @BeforeEach
     void setUp() {
-        when(securityContextHelper.getCurrentTaId()).thenReturn(TA_ID);
-
         TaUser ta = new TaUser();
         ta.setId(TA_ID);
         session = GradingSession.builder()
@@ -65,8 +63,18 @@ class SubmissionServiceTest {
                 .build();
     }
 
+    /**
+     * Stubs the current TA identity. Called only by tests that go through a
+     * tenant-scoped path — the batch-limit checks query by session id alone, and
+     * stubbing for them would trip Mockito's strict-stub checking.
+     */
+    private void stubCurrentTa() {
+        when(securityContextHelper.getCurrentTaId()).thenReturn(TA_ID);
+    }
+
     @Test
     void listSubmissions_returnsOrderedSubmissions() {
+        stubCurrentTa();
         when(sessionRepository.findByIdAndTaId(SESSION_ID, TA_ID)).thenReturn(Optional.of(session));
 
         Submission sub1 = buildSubmission(SUB_ID_1, "student1.pdf", "Alice", 0);
@@ -85,6 +93,7 @@ class SubmissionServiceTest {
 
     @Test
     void listSubmissions_throws404_whenSessionNotOwned() {
+        stubCurrentTa();
         when(sessionRepository.findByIdAndTaId(SESSION_ID, TA_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> submissionService.listSubmissions(SESSION_ID))
@@ -94,6 +103,7 @@ class SubmissionServiceTest {
 
     @Test
     void updateIdentity_updatesNameAndMarksVerified() {
+        stubCurrentTa();
         when(sessionRepository.findByIdAndTaId(SESSION_ID, TA_ID)).thenReturn(Optional.of(session));
 
         Submission submission = buildSubmission(SUB_ID_1, "file.pdf", "OldName", 0);
@@ -115,6 +125,7 @@ class SubmissionServiceTest {
 
     @Test
     void updateIdentity_throws404_whenSubmissionNotFound() {
+        stubCurrentTa();
         when(sessionRepository.findByIdAndTaId(SESSION_ID, TA_ID)).thenReturn(Optional.of(session));
         when(submissionRepository.findByIdAndSessionId(SUB_ID_1, SESSION_ID)).thenReturn(Optional.empty());
 
@@ -129,6 +140,7 @@ class SubmissionServiceTest {
 
     @Test
     void updateIdentity_flagsDuplicatesAfterRename() {
+        stubCurrentTa();
         when(sessionRepository.findByIdAndTaId(SESSION_ID, TA_ID)).thenReturn(Optional.of(session));
 
         Submission sub1 = buildSubmission(SUB_ID_1, "file1.pdf", "Alice", 0);
@@ -153,6 +165,7 @@ class SubmissionServiceTest {
 
     @Test
     void updateIdentity_clearsDuplicateFlagWhenNoLongerDuplicated() {
+        stubCurrentTa();
         when(sessionRepository.findByIdAndTaId(SESSION_ID, TA_ID)).thenReturn(Optional.of(session));
 
         Submission sub1 = buildSubmission(SUB_ID_1, "file1.pdf", "Alice", 0);
@@ -177,6 +190,7 @@ class SubmissionServiceTest {
 
     @Test
     void confirmIdentities_setsAllToVerified() {
+        stubCurrentTa();
         when(sessionRepository.findByIdAndTaId(SESSION_ID, TA_ID)).thenReturn(Optional.of(session));
 
         Submission sub1 = buildSubmission(SUB_ID_1, "file1.pdf", "Alice", 0);
