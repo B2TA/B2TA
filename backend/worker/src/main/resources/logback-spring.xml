@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Structured logging for the Worker service (Requirement 18.11).
+
+  The worker handles extracted submission text and Bedrock responses, so redaction matters here as
+  much as in the API. Same %sanitized rule, same identifier-only MDC field set.
+-->
+<configuration>
+
+    <conversionRule conversionWord="sanitized"
+                    converterClass="com.b2ta.common.logging.SanitizedMessageConverter"/>
+
+    <springProfile name="local,test">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %sanitized%n%rEx</pattern>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+        <logger name="com.b2ta" level="DEBUG"/>
+    </springProfile>
+
+    <springProfile name="!local &amp; !test">
+        <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+                <providers>
+                    <timestamp/>
+                    <logLevel/>
+                    <threadName/>
+                    <loggerName>
+                        <shortenedLoggerNameLength>40</shortenedLoggerNameLength>
+                    </loggerName>
+                    <pattern>
+                        <pattern>{"service":"grading-worker","message":"%sanitized"}</pattern>
+                    </pattern>
+                    <mdc>
+                        <includeMdcKeyName>taId</includeMdcKeyName>
+                        <includeMdcKeyName>sessionId</includeMdcKeyName>
+                        <includeMdcKeyName>submissionId</includeMdcKeyName>
+                        <includeMdcKeyName>criterionId</includeMdcKeyName>
+                        <includeMdcKeyName>jobId</includeMdcKeyName>
+                    </mdc>
+                    <stackTrace/>
+                </providers>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="JSON"/>
+        </root>
+        <logger name="com.b2ta" level="INFO"/>
+    </springProfile>
+
+    <logger name="org.hibernate.SQL" level="WARN"/>
+    <logger name="org.hibernate.orm.jdbc.bind" level="WARN"/>
+    <logger name="software.amazon.awssdk.request" level="WARN"/>
+    <logger name="org.apache.http.wire" level="WARN"/>
+
+</configuration>

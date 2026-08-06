@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Structured logging for the API service (Requirement 18.11).
+
+  The message is always rendered through the %sanitized conversion rule instead of %message, so
+  access tokens, student display names, and feedback text are stripped before anything is written.
+  In the JSON encoder the default message provider is replaced by a pattern provider that uses the
+  same rule, so the guarantee holds in both profiles.
+
+  Only identifiers are promoted to structured fields: sessionId, submissionId, criterionId, jobId,
+  taId.
+-->
+<configuration>
+
+    <conversionRule conversionWord="sanitized"
+                    converterClass="com.b2ta.common.logging.SanitizedMessageConverter"/>
+
+    <springProfile name="local,test">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %sanitized%n%rEx</pattern>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+        <logger name="com.b2ta" level="DEBUG"/>
+    </springProfile>
+
+    <springProfile name="!local &amp; !test">
+        <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+                <providers>
+                    <timestamp/>
+                    <logLevel/>
+                    <threadName/>
+                    <loggerName>
+                        <shortenedLoggerNameLength>40</shortenedLoggerNameLength>
+                    </loggerName>
+                    <!-- Replaces the default <message/> provider so the value is redacted. -->
+                    <pattern>
+                        <pattern>{"service":"grading-api","message":"%sanitized"}</pattern>
+                    </pattern>
+                    <mdc>
+                        <includeMdcKeyName>taId</includeMdcKeyName>
+                        <includeMdcKeyName>sessionId</includeMdcKeyName>
+                        <includeMdcKeyName>submissionId</includeMdcKeyName>
+                        <includeMdcKeyName>criterionId</includeMdcKeyName>
+                        <includeMdcKeyName>jobId</includeMdcKeyName>
+                    </mdc>
+                    <stackTrace/>
+                </providers>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="JSON"/>
+        </root>
+        <logger name="com.b2ta" level="INFO"/>
+    </springProfile>
+
+    <!-- Hibernate and the AWS SDK log statement parameters and HTTP bodies at DEBUG, which would
+         defeat the redaction guarantee. Pinned to WARN regardless of profile. -->
+    <logger name="org.hibernate.SQL" level="WARN"/>
+    <logger name="org.hibernate.orm.jdbc.bind" level="WARN"/>
+    <logger name="software.amazon.awssdk.request" level="WARN"/>
+    <logger name="org.apache.http.wire" level="WARN"/>
+
+</configuration>

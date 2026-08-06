@@ -5,13 +5,15 @@ spring:
     active: api
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/grading_assistant
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/grading_assistant}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
+      # Flyway owns the schema. `validate` catches an entity that has drifted from the migrations
+      # at startup rather than at the first query that touches the missing column.
       ddl-auto: validate
     open-in-view: false
     properties:
@@ -28,7 +30,7 @@ spring:
     default-property-inclusion: non_null
 
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
 
 management:
   endpoints:
@@ -39,13 +41,35 @@ management:
     health:
       show-details: when-authorized
 
-# AWS Configuration
+auth:
+  # Bypasses Cognito and authenticates from the X-Dev-Ta-Email header. SecurityConfig refuses to
+  # start with this enabled unless the `local` or `test` profile is active.
+  dev-mode: ${AUTH_DEV_MODE:false}
+  dev-email: ${AUTH_DEV_EMAIL:dev-ta@example.com}
+  allowed-origins: ${AUTH_ALLOWED_ORIGINS:http://localhost:8443,http://localhost:5173,http://127.0.0.1:8443}
+
 aws:
   region: ${AWS_REGION:us-east-1}
   s3:
-    bucket: ${S3_BUCKET:rubric-grading-assistant}
+    bucket: ${S3_BUCKET:}
+    upload-url-ttl-minutes: 15
+    download-url-ttl-minutes: 15
+    endpoint-override: ${S3_ENDPOINT_OVERRIDE:}
   sqs:
+    # Empty means analysis jobs run inside this process instead of being queued. Deployments set it.
     queue-url: ${SQS_QUEUE_URL:}
   cognito:
     user-pool-id: ${COGNITO_USER_POOL_ID:}
     region: ${COGNITO_REGION:${aws.region}}
+    client-id: ${COGNITO_CLIENT_ID:}
+  bedrock:
+    region: ${BEDROCK_REGION:${aws.region}}
+    # The API's IAM task role grants Haiku only; Sonnet belongs to the worker.
+    comment-model-id: ${BEDROCK_COMMENT_MODEL:anthropic.claude-haiku-4-5-20250401-v1:0}
+    match-model-id: ${BEDROCK_MATCH_MODEL:anthropic.claude-sonnet-4-20250514-v1:0}
+    comment-timeout-seconds: 15
+    match-timeout-seconds: 30
+    max-attempts: 4
+    retry-base-delay-millis: 1000
+    max-concurrent-invocations: 5
+    enabled: ${BEDROCK_ENABLED:true}

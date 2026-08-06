@@ -1,5 +1,7 @@
 package com.b2ta.common.entity;
 
+import com.b2ta.common.entity.converter.PersistableEnumConverters;
+import com.b2ta.common.entity.enums.DiscardReason;
 import com.b2ta.common.entity.enums.MatchState;
 import jakarta.persistence.*;
 import lombok.*;
@@ -41,15 +43,16 @@ public class SuggestedMatch {
     @Column(name = "confidence", nullable = false, precision = 3, scale = 2)
     private BigDecimal confidence;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "match_state", nullable = false)
+    @Convert(converter = PersistableEnumConverters.MatchStateConverter.class)
+    @Column(name = "match_state", nullable = false, length = 20)
     private MatchState matchState;
 
     @Column(name = "is_stale", nullable = false)
     private Boolean isStale;
 
-    @Column(name = "discard_reason")
-    private String discardReason;
+    @Convert(converter = PersistableEnumConverters.DiscardReasonConverter.class)
+    @Column(name = "discard_reason", length = 200)
+    private DiscardReason discardReason;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

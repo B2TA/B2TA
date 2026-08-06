@@ -34,6 +34,18 @@ export default defineConfig(({ mode }) => {
       port: parseInt(process.env.PORT || '8443'),
       strictPort: true,
       watch: { ignored: ['**/.figma/**'] },
+      // Proxy API calls to the Spring Boot API service so the browser sees one origin.
+      // Same-origin requests need no CORS preflight and no absolute URL in the client, which
+      // means the deployed build works unchanged behind a load balancer that routes /api itself.
+      // Override the target with API_PROXY_TARGET when the API runs elsewhere.
+      proxy: {
+        '/api': {
+          target: process.env.API_PROXY_TARGET || 'http://localhost:8080',
+          changeOrigin: true,
+          // Exports and analysis can take tens of seconds; the default would cut them short.
+          timeout: 60_000,
+        },
+      },
     },
     preview: {
       host: '0.0.0.0',

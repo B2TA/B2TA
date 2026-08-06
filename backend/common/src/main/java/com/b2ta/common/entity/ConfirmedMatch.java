@@ -1,5 +1,6 @@
 package com.b2ta.common.entity;
 
+import com.b2ta.common.entity.converter.PersistableEnumConverters;
 import com.b2ta.common.entity.enums.MatchOrigin;
 import jakarta.persistence.*;
 import lombok.*;
@@ -35,14 +36,14 @@ public class ConfirmedMatch {
     @Column(name = "passage_end", nullable = false)
     private Integer passageEnd;
 
-    @Column(name = "rationale", length = 300)
+    @Column(name = "rationale", nullable = false, length = 300)
     private String rationale;
 
     @Column(name = "confidence", precision = 3, scale = 2)
     private BigDecimal confidence;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "origin", nullable = false)
+    @Convert(converter = PersistableEnumConverters.MatchOriginConverter.class)
+    @Column(name = "origin", nullable = false, length = 20)
     private MatchOrigin origin;
 
     @Column(name = "source_match_id")

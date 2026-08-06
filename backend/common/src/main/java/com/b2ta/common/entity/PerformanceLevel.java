@@ -32,6 +32,6 @@ public class PerformanceLevel {
     @Column(name = "points", precision = 7, scale = 2)
     private BigDecimal points;
 
-    @Column(name = "position", nullable = false)
-    private Integer position;
+    @Column(name = "position", nullable = false, columnDefinition = "SMALLINT")
+    private Short position;
 }

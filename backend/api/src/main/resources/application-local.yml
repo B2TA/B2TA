@@ -1,0 +1,23 @@
+# Local development profile.
+#
+# Run with: SPRING_PROFILES_ACTIVE=local mvn -pl api spring-boot:run
+#
+# Authentication is bypassed and Bedrock is switched off, so the SPA can be driven end to end
+# against a local PostgreSQL instance with no AWS account. Criteria then report
+# analysis-unavailable rather than producing fabricated matches, which keeps that state exercised.
+#
+# SecurityConfig hard-fails if auth.dev-mode is true without this profile, so these settings cannot
+# reach a deployment by being copied into the base configuration.
+auth:
+  dev-mode: true
+  dev-email: dev-ta@example.com
+
+aws:
+  sqs:
+    queue-url: ""
+  bedrock:
+    enabled: ${BEDROCK_ENABLED:false}
+
+logging:
+  level:
+    com.b2ta: DEBUG
