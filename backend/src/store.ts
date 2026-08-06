@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto"
 
-import type { Criterion, Rubric, Session, Submission } from "./types.js"
+import type {
+  Criterion,
+  GradingRecord,
+  Rubric,
+  Session,
+  Submission,
+} from "./types.js"
 
 export type SubmissionInput = Omit<Submission, "id" | "sessionId" | "createdAt" | "artifactUrl" | "storageKey" | "position"> & {
   artifact: {
@@ -32,11 +38,22 @@ export type RubricInput = {
   }>
 }
 
+export type GradingRecordInput = {
+  overallFeedback: string
+  criterionScores: Array<{
+    criterionId: string
+    selectedLevelId: string | null
+    overridePoints: number | null
+    criterionFeedback: string
+  }>
+}
+
 export class MemoryStore {
   readonly #sessions = new Map<string, Session>()
   readonly #rubrics = new Map<string, Rubric>()
   readonly #submissions = new Map<string, Submission[]>()
   readonly #artifacts = new Map<string, SubmissionArtifact>()
+  readonly #gradingRecords = new Map<string, GradingRecord>()
 
   listSessions(): Session[] {
     return [...this.#sessions.values()].sort((a, b) =>
@@ -67,6 +84,7 @@ export class MemoryStore {
   deleteSession(id: string): boolean {
     for (const submission of this.#submissions.get(id) ?? []) {
       this.#artifacts.delete(submission.id)
+      this.#gradingRecords.delete(submission.id)
     }
     this.#rubrics.delete(id)
     this.#submissions.delete(id)
@@ -128,12 +146,22 @@ export class MemoryStore {
     return this.#submissions.get(sessionId) ?? []
   }
 
+  getSubmission(
+    sessionId: string,
+    submissionId: string,
+  ): Submission | undefined {
+    return this.listSubmissions(sessionId).find(
+      (item) => item.id === submissionId,
+    )
+  }
+
   saveSubmissionBatch(
     sessionId: string,
     input: SubmissionInput[],
   ): Submission[] {
     for (const submission of this.#submissions.get(sessionId) ?? []) {
       this.#artifacts.delete(submission.id)
+      this.#gradingRecords.delete(submission.id)
     }
     const now = new Date().toISOString()
     const submissions = input.map(({ artifact, ...item }, position) => {
@@ -163,5 +191,37 @@ export class MemoryStore {
       (submission) => submission.id === submissionId,
     )
     return belongsToSession ? this.#artifacts.get(submissionId) : undefined
+  }
+
+  getGradingRecord(submissionId: string): GradingRecord | undefined {
+    return this.#gradingRecords.get(submissionId)
+  }
+
+  saveGradingRecord(
+    submissionId: string,
+    input: GradingRecordInput,
+  ): GradingRecord {
+    const existing = this.#gradingRecords.get(submissionId)
+    const now = new Date().toISOString()
+    const gradingRecordId = existing?.id ?? randomUUID()
+    const record: GradingRecord = {
+      id: gradingRecordId,
+      submissionId,
+      overallFeedback: input.overallFeedback,
+      criterionScores: input.criterionScores.map((score) => ({
+        ...score,
+        id:
+          existing?.criterionScores.find(
+            (item) => item.criterionId === score.criterionId,
+          )?.id ?? randomUUID(),
+        gradingRecordId,
+      })),
+      confirmedMatches: [],
+      suggestedMatches: [],
+      savedAt: now,
+      createdAt: existing?.createdAt ?? now,
+    }
+    this.#gradingRecords.set(submissionId, record)
+    return record
   }
 }

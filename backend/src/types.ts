@@ -61,3 +61,23 @@ export type Submission = {
   position: number
   createdAt: string
 }
+
+export type CriterionScore = {
+  id: string
+  gradingRecordId: string
+  criterionId: string
+  selectedLevelId: string | null
+  overridePoints: number | null
+  criterionFeedback: string
+}
+
+export type GradingRecord = {
+  id: string
+  submissionId: string
+  overallFeedback: string
+  criterionScores: CriterionScore[]
+  confirmedMatches: []
+  suggestedMatches: []
+  savedAt: string
+  createdAt: string
+}

@@ -28,6 +28,10 @@ export default function App() {
           <Route path="/sessions" element={<SessionListPage />} />
           <Route path="/sessions/:id/setup" element={<SessionSetupPage />} />
           <Route path="/sessions/:id/mark" element={<MarkingPage />} />
+          <Route
+            path="/sessions/:id/mark/:submissionId"
+            element={<MarkingPage />}
+          />
           <Route path="/sessions/:id/review" element={<ReviewPage />} />
           <Route path="*" element={<Navigate to="/sessions" replace />} />
         </Routes>

@@ -26,6 +26,8 @@ requests to it during local development.
 | `PUT` | `/api/sessions/:id/rubric` | Create or replace the session rubric |
 | `GET` | `/api/sessions/:id/submissions` | List session submissions |
 | `GET` | `/api/sessions/:id/submissions/:submissionId/artifact` | Display an imported submission PDF |
+| `GET` | `/api/sessions/:id/submissions/:submissionId/grading-record` | Load the TA's saved grading record |
+| `PUT` | `/api/sessions/:id/submissions/:submissionId/grading-record` | Create or update the submission's canonical grading record |
 | `POST` | `/api/canvas/connection` | Validate and hold a Canvas URL and personal access token |
 | `GET` | `/api/canvas/courses` | List active courses visible to the connected Canvas user |
 | `GET` | `/api/canvas/courses/:courseId/assignments` | List course assignments and rubric availability |

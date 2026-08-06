@@ -140,14 +140,22 @@ function SubmissionBatchSummaryView({ summary, submissions }: SubmissionBatch) {
               ) : null}
             </div>
             {submission.artifactUrl ? (
-              <a
-                className="w-fit border border-slate-300 bg-white px-4 py-2 text-xs font-semibold hover:border-amber-600 hover:text-amber-700"
-                href={submission.artifactUrl}
-                rel="noreferrer"
-                target="_blank"
-              >
-                View PDF
-              </a>
+              <div className="flex gap-2">
+                <Link
+                  className="w-fit bg-slate-950 px-4 py-2 text-xs font-semibold text-white hover:bg-amber-700"
+                  to={`/sessions/${submission.sessionId}/mark/${submission.id}`}
+                >
+                  Grade submission
+                </Link>
+                <a
+                  className="w-fit border border-slate-300 bg-white px-4 py-2 text-xs font-semibold hover:border-amber-600 hover:text-amber-700"
+                  href={submission.artifactUrl}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  View PDF
+                </a>
+              </div>
             ) : (
               <span
                 className={`font-mono text-[10px] font-semibold uppercase tracking-[0.14em] ${

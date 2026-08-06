@@ -5,7 +5,11 @@ import express, {
 } from "express"
 
 import { CanvasAdapter, CanvasError } from "./canvas.js"
-import { MemoryStore, type RubricInput } from "./store.js"
+import {
+  MemoryStore,
+  type GradingRecordInput,
+  type RubricInput,
+} from "./store.js"
 
 type ErrorBody = {
   error: {
@@ -57,6 +61,67 @@ function parseNumericId(value: unknown): number | null {
   if (typeof value !== "string" && typeof value !== "number") return null
   const parsed = Number(value)
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+function parseGradingRecord(
+  value: unknown,
+  rubric: NonNullable<ReturnType<MemoryStore["getRubric"]>>,
+): GradingRecordInput | null {
+  if (typeof value !== "object" || value === null) return null
+  const body = value as {
+    overallFeedback?: unknown
+    criterionScores?: unknown
+  }
+  if (
+    typeof body.overallFeedback !== "string" ||
+    body.overallFeedback.length > 10_000 ||
+    !Array.isArray(body.criterionScores) ||
+    body.criterionScores.length !== rubric.criteria.length
+  )
+    return null
+
+  const scores = body.criterionScores.map((value) => {
+    if (typeof value !== "object" || value === null) return null
+    const score = value as Record<string, unknown>
+    const criterion = rubric.criteria.find(
+      (item) => item.id === score.criterionId,
+    )
+    if (
+      !criterion ||
+      typeof score.criterionFeedback !== "string" ||
+      score.criterionFeedback.length > 5_000
+    )
+      return null
+    const selectedLevelId =
+      score.selectedLevelId === null ? null : score.selectedLevelId
+    const overridePoints =
+      score.overridePoints === null ? null : score.overridePoints
+    const selectedLevel = criterion.performanceLevels.find(
+      (level) => level.id === selectedLevelId,
+    )
+    const validOverride =
+      typeof overridePoints === "number" &&
+      Number.isFinite(overridePoints) &&
+      overridePoints >= 0 &&
+      (criterion.maxPoints === null || overridePoints <= criterion.maxPoints)
+    if ((selectedLevel ? 1 : 0) + (validOverride ? 1 : 0) !== 1) return null
+    return {
+      criterionId: criterion.id,
+      selectedLevelId: selectedLevel?.id ?? null,
+      overridePoints: validOverride ? overridePoints as number : null,
+      criterionFeedback: score.criterionFeedback.trim(),
+    }
+  })
+  if (scores.some((score) => score === null)) return null
+  if (
+    new Set(scores.map((score) => score!.criterionId)).size !==
+    rubric.criteria.length
+  )
+    return null
+  return {
+    overallFeedback: body.overallFeedback.trim(),
+    criterionScores: scores as GradingRecordInput["criterionScores"],
+  }
 }
 
 export function createApp(
@@ -112,6 +177,65 @@ export function createApp(
           "Course id must be a positive integer",
         )
       return response.json(await canvas.listAssignments(courseId))
+    },
+  )
+
+  app.get(
+    "/api/sessions/:id/submissions/:submissionId/grading-record",
+    (request, response) => {
+      if (
+        !store.getSubmission(request.params.id, request.params.submissionId)
+      ) {
+        return sendError(
+          response,
+          404,
+          "submission_not_found",
+          "Submission not found",
+        )
+      }
+      const record = store.getGradingRecord(request.params.submissionId)
+      if (!record)
+        return sendError(
+          response,
+          404,
+          "grading_record_not_found",
+          "Grading record not found",
+        )
+      return response.json(record)
+    },
+  )
+
+  app.put(
+    "/api/sessions/:id/submissions/:submissionId/grading-record",
+    (request, response) => {
+      const submission = store.getSubmission(
+        request.params.id,
+        request.params.submissionId,
+      )
+      if (!submission)
+        return sendError(
+          response,
+          404,
+          "submission_not_found",
+          "Submission not found",
+        )
+      const rubric = store.getRubric(request.params.id)
+      if (!rubric)
+        return sendError(
+          response,
+          409,
+          "rubric_not_found",
+          "Import a rubric before grading",
+        )
+      const input = parseGradingRecord(request.body, rubric)
+      if (!input)
+        return sendError(
+          response,
+          400,
+          "invalid_grading_record",
+          "Score every criterion with a rubric level or valid point override",
+        )
+      return response.json(store.saveGradingRecord(submission.id, input))
     },
   )
 
