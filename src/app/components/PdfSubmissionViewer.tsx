@@ -141,7 +141,7 @@ function PdfPage({
 
   return (
     <div
-      className="relative mx-auto overflow-hidden bg-white shadow-lg"
+      className="relative mx-auto bg-white shadow-lg"
       style={{ height: model.viewport.height, width: model.viewport.width }}
     >
       <canvas data-pdf-page={model.pageNumber} ref={canvasRef} />
@@ -149,35 +149,64 @@ function PdfPage({
         className="pointer-events-none absolute inset-0"
         aria-label={`Evidence overlays on page ${model.pageNumber}`}
       >
-        {overlays.map((overlay, index) => (
-          <span
-            className="absolute rounded-[2px] border-b-2 opacity-70 mix-blend-multiply"
-            data-testid={
-              overlays.findIndex(
-                (item) => item.suggestion.id === overlay.suggestion.id,
-              ) === index
-                ? `pdf-evidence-${overlay.suggestion.id}`
-                : undefined
-            }
-            id={
-              overlays.findIndex(
-                (item) => item.suggestion.id === overlay.suggestion.id,
-              ) === index
-                ? `pdf-suggestion-${overlay.suggestion.id}`
-                : undefined
-            }
-            key={`${overlay.suggestion.id}-${index}`}
-            style={{
-              backgroundColor: `${overlay.criterion?.displayColor ?? "#B45309"}42`,
-              borderColor: overlay.criterion?.displayColor ?? "#B45309",
-              height: overlay.height,
-              left: overlay.left,
-              top: overlay.top,
-              width: overlay.width,
-            }}
-            title={`Suggested for ${overlay.criterion?.title ?? "rubric criterion"}`}
-          />
-        ))}
+        {overlays.map((overlay, index) => {
+          const isTooltipAnchor =
+            overlays.findIndex(
+              (item) => item.suggestion.id === overlay.suggestion.id,
+            ) === index
+          const tooltipId = `pdf-tooltip-${overlay.suggestion.id}`
+          return (
+            <span
+              aria-describedby={isTooltipAnchor ? tooltipId : undefined}
+              aria-label={
+                isTooltipAnchor
+                  ? `Why this may match ${overlay.criterion?.title ?? "rubric criterion"}`
+                  : undefined
+              }
+              className={`group absolute rounded-[2px] border-b-2 transition ${
+                isTooltipAnchor
+                  ? "pointer-events-auto cursor-help focus:outline-2 focus:outline-offset-2"
+                  : ""
+              }`}
+              data-testid={
+                isTooltipAnchor
+                  ? `pdf-evidence-${overlay.suggestion.id}`
+                  : undefined
+              }
+              id={
+                isTooltipAnchor
+                  ? `pdf-suggestion-${overlay.suggestion.id}`
+                  : undefined
+              }
+              key={`${overlay.suggestion.id}-${index}`}
+              style={{
+                backgroundColor: `${overlay.criterion?.displayColor ?? "#B45309"}42`,
+                borderColor: overlay.criterion?.displayColor ?? "#B45309",
+                height: overlay.height,
+                left: overlay.left,
+                top: overlay.top,
+                width: overlay.width,
+              }}
+              role={isTooltipAnchor ? "button" : undefined}
+              tabIndex={isTooltipAnchor ? 0 : undefined}
+            >
+              {isTooltipAnchor ? (
+                <span
+                  className="pointer-events-none absolute top-full left-1/2 z-30 mt-2 hidden w-72 -translate-x-1/2 border border-slate-700 bg-slate-900 p-3 text-left text-white shadow-xl group-hover:block group-focus:block"
+                  id={tooltipId}
+                  role="tooltip"
+                >
+                  <span className="block font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-sky-300">
+                    May match {overlay.criterion?.title ?? "rubric criterion"}
+                  </span>
+                  <span className="mt-1.5 block text-xs leading-5 normal-case tracking-normal">
+                    {overlay.suggestion.rationale}
+                  </span>
+                </span>
+              ) : null}
+            </span>
+          )
+        })}
       </div>
       <span className="absolute right-2 bottom-2 bg-slate-900/75 px-2 py-1 font-mono text-[9px] text-white">
         {model.pageNumber}

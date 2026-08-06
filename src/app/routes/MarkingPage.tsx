@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { lazy, Suspense, useEffect, useMemo, useState } from "react"
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { Link, Navigate, useParams } from "react-router"
 
 import api, { ApiError } from "../api"
@@ -32,6 +32,7 @@ export default function MarkingPage() {
   const [overallFeedback, setOverallFeedback] = useState("")
   const [loaded, setLoaded] = useState(false)
   const [dirty, setDirty] = useState(false)
+  const requestedSuggestionsFor = useRef<string | null>(null)
 
   const sessionQuery = useQuery({
     queryKey: ["sessions", id],
@@ -119,7 +120,26 @@ export default function MarkingPage() {
         suggestions,
       )
     },
+    retry: 1,
   })
+
+  useEffect(() => {
+    if (
+      !submission?.extractedText ||
+      !suggestionsQuery.isSuccess ||
+      suggestionsQuery.data.length > 0 ||
+      suggestionsMutation.isPending ||
+      requestedSuggestionsFor.current === submission.id
+    )
+      return
+    requestedSuggestionsFor.current = submission.id
+    suggestionsMutation.mutate()
+  }, [
+    submission,
+    suggestionsMutation,
+    suggestionsQuery.data,
+    suggestionsQuery.isSuccess,
+  ])
 
   const completed = scores.filter(
     (score) => score.selectedLevelId !== null || score.overridePoints !== null,
@@ -298,23 +318,14 @@ export default function MarkingPage() {
             <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
               {completed} of {rubricQuery.data.criteria.length} criteria scored
             </p>
-            <button
-              className="mt-4 min-h-10 w-full border border-sky-700 bg-sky-50 px-4 text-sm font-bold text-sky-900 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={
-                !submission.extractedText || suggestionsMutation.isPending
-              }
-              onClick={() => suggestionsMutation.mutate()}
-              type="button"
-            >
-              {suggestionsMutation.isPending
-                ? "Finding evidence…"
-                : suggestions.length > 0
-                  ? "Refresh rubric evidence"
-                  : "Find rubric evidence"}
-            </button>
             <p className="mt-2 text-xs leading-5 text-slate-500">
-              AI highlights places to inspect. It never selects or recommends a
-              mark.
+              {suggestionsMutation.isPending
+                ? "Finding rubric evidence…"
+                : suggestions.length > 0
+                  ? `${suggestions.length} AI highlight${
+                      suggestions.length === 1 ? "" : "s"
+                    } on the PDF. AI never selects or recommends a mark.`
+                  : "AI highlights will appear on the PDF without selecting or recommending a mark."}
             </p>
             {suggestionsMutation.isError ? (
               <p
@@ -333,9 +344,9 @@ export default function MarkingPage() {
                 (item) => item.criterionId === criterion.id,
               )
               if (!score) return null
-              const criterionSuggestions = suggestions.filter(
+              const criterionSuggestionCount = suggestions.filter(
                 (suggestion) => suggestion.criterionId === criterion.id,
-              )
+              ).length
               return (
                 <fieldset
                   className="border border-slate-200 bg-white p-4 shadow-sm"
@@ -348,6 +359,11 @@ export default function MarkingPage() {
                         style={{ backgroundColor: criterion.displayColor }}
                       />
                       {criterion.title}
+                      {criterionSuggestionCount > 0 ? (
+                        <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-sky-700">
+                          · {criterionSuggestionCount} on PDF
+                        </span>
+                      ) : null}
                       <span className="ml-auto font-mono text-xs text-slate-400">
                         /{criterion.maxPoints ?? "—"}
                       </span>
@@ -357,41 +373,6 @@ export default function MarkingPage() {
                     <p className="mt-2 text-xs leading-5 text-slate-600">
                       {criterion.description}
                     </p>
-                  ) : null}
-                  {criterionSuggestions.length > 0 ? (
-                    <div className="mt-4 space-y-2">
-                      {criterionSuggestions.map((suggestion) => (
-                        <button
-                          className="block w-full border-l-2 bg-sky-50 p-3 text-left hover:bg-sky-100"
-                          key={suggestion.id}
-                          onClick={() =>
-                            document
-                              .getElementById(`pdf-suggestion-${suggestion.id}`)
-                              ?.scrollIntoView({
-                                behavior: "smooth",
-                                block: "center",
-                              })
-                          }
-                          style={{ borderColor: criterion.displayColor }}
-                          type="button"
-                        >
-                          <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-sky-800">
-                            Suggested for {criterion.title}
-                          </span>
-                          <span className="mt-1 block text-xs font-semibold leading-5 text-slate-800">
-                            “
-                            {submission.extractedText?.slice(
-                              suggestion.passageStart,
-                              suggestion.passageEnd,
-                            )}
-                            ”
-                          </span>
-                          <span className="mt-1 block text-xs leading-5 text-slate-600">
-                            {suggestion.rationale}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
                   ) : null}
                   <div className="mt-4 space-y-2">
                     {criterion.performanceLevels.map((level) => (

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, expect, test, vi } from "vitest"
 
@@ -12,7 +12,11 @@ vi.mock("../components/PdfSubmissionViewer", () => ({
     artifactUrl: string
     rubric: { criteria: Array<{ id: string title: string }> }
     studentDisplayName: string
-    suggestions: Array<{ id: string criterionId: string }>
+    suggestions: Array<{
+      id: string
+      criterionId: string
+      rationale: string
+    }>
   }) => (
     <div aria-label={`${studentDisplayName} submission PDF`}>
       <iframe
@@ -20,13 +24,16 @@ vi.mock("../components/PdfSubmissionViewer", () => ({
         title={`${studentDisplayName} submission PDF`}
       />
       {suggestions.map((suggestion) => (
-        <span
-          data-testid={`pdf-evidence-${suggestion.id}`}
-          key={suggestion.id}
-          title={`Suggested for ${rubric.criteria.find(
+        <button
+          aria-label={`Why this may match ${rubric.criteria.find(
             (item) => item.id === suggestion.criterionId,
           )?.title}`}
-        />
+          data-testid={`pdf-evidence-${suggestion.id}`}
+          key={suggestion.id}
+          type="button"
+        >
+          <span role="tooltip">{suggestion.rationale}</span>
+        </button>
       ))}
     </div>
   ),
@@ -177,23 +184,28 @@ beforeEach(() => {
 })
 
 test("AI highlights likely rubric evidence without selecting a mark", async () => {
-  const user = userEvent.setup()
   render(<App />)
 
   await screen.findByRole("heading", { name: "Alex Able" })
-  await user.click(screen.getByRole("button", { name: "Find rubric evidence" }))
 
+  const pdf = await screen.findByLabelText("Alex Able submission PDF")
   expect(
-    await screen.findByTestId("pdf-evidence-suggestion-1"),
-  ).toHaveAttribute("title", "Suggested for Thesis clarity")
+    within(pdf).getByRole("button", {
+      name: "Why this may match Thesis clarity",
+    }),
+  ).toBeInTheDocument()
+  expect(within(pdf).getByRole("tooltip")).toHaveTextContent(
+    "This passage states the central claim.",
+  )
   expect(
-    screen.getByText("This passage states the central claim."),
-  ).toBeVisible()
-  expect(screen.getByText("Suggested for Thesis clarity")).toBeVisible()
+    within(screen.getByRole("group", { name: /Thesis clarity/ })).queryByText(
+      "This passage states the central claim.",
+    ),
+  ).not.toBeInTheDocument()
   expect(screen.getAllByRole("radio", { checked: false })).toHaveLength(3)
   expect(screen.queryByText(/recommended score/i)).not.toBeInTheDocument()
   expect(
-    screen.queryByRole("button", { name: "Evidence text" }),
+    screen.queryByRole("button", { name: "Find rubric evidence" }),
   ).not.toBeInTheDocument()
 })
 

@@ -77,11 +77,17 @@ test("TA imports a Canvas rubric, roster, and PDF submission batch", async ({
   await page.getByRole("link", { name: "Grade submission" }).click()
   await expect(page.getByRole("heading", { name: "Alex Able" })).toBeVisible()
   await expect(page.getByLabel("Alex Able submission PDF")).toBeVisible()
-  await page.getByRole("button", { name: "Find rubric evidence" }).click()
+  const evidenceOverlay = page.getByRole("button", {
+    name: "Why this may match Thesis clarity",
+  })
+  await expect(evidenceOverlay).toBeVisible()
+  await evidenceOverlay.hover()
   await expect(
     page.getByText("This passage appears to state the central claim."),
   ).toBeVisible()
-  await expect(page.getByTitle("Suggested for Thesis clarity")).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Find rubric evidence" }),
+  ).not.toBeVisible()
   await expect(
     page.getByRole("radio", { name: "Strong — 5 points" }),
   ).not.toBeChecked()
