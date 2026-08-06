@@ -4,7 +4,7 @@ Description: "Grading Assistant - Parent stack that nests all infrastructure com
 Parameters:
   EnvironmentName:
     Type: String
-    Default: grading-assistant
+    Default: rubric-grading-assistant
     Description: Environment name prefix for resource naming
 
   TemplatesBucket:
@@ -13,7 +13,7 @@ Parameters:
 
   DBMasterUsername:
     Type: String
-    Default: gradingadmin
+    Default: postgres
     Description: Master username for RDS PostgreSQL
 
   DBMasterPassword:
@@ -26,11 +26,6 @@ Parameters:
     Type: String
     Default: ""
     Description: ACM certificate ARN for HTTPS (leave empty for HTTP-only dev mode)
-
-  CallbackUrl:
-    Type: String
-    Default: "https://localhost:3000"
-    Description: OAuth callback URL for the frontend app
 
   ApiImage:
     Type: String
@@ -70,7 +65,7 @@ Resources:
       Parameters:
         EnvironmentName: !Ref EnvironmentName
         VpcId: !GetAtt NetworkStack.Outputs.VpcId
-        BucketArn: !Sub "arn:aws:s3:::grading-assistant-files-${AWS::AccountId}-${AWS::Region}"
+        BucketArn: !Sub "arn:aws:s3:::${EnvironmentName}-${AWS::AccountId}"
         JobQueueArn: !GetAtt MessagingStack.Outputs.JobQueueArn
 
   # ---------- Storage Stack (depends on Network + Security) ----------
@@ -83,8 +78,8 @@ Resources:
       TemplateURL: !Sub "https://${TemplatesBucket}.s3.amazonaws.com/infra/storage.yml"
       Parameters:
         EnvironmentName: !Ref EnvironmentName
-        PrivateSubnet1Id: !GetAtt NetworkStack.Outputs.PrivateSubnet1Id
-        PrivateSubnet2Id: !GetAtt NetworkStack.Outputs.PrivateSubnet2Id
+        PublicSubnet1Id: !GetAtt NetworkStack.Outputs.PublicSubnet1Id
+        PublicSubnet2Id: !GetAtt NetworkStack.Outputs.PublicSubnet2Id
         RdsSecurityGroupId: !GetAtt SecurityStack.Outputs.RdsSecurityGroupId
         DBMasterUsername: !Ref DBMasterUsername
         DBMasterPassword: !Ref DBMasterPassword
@@ -96,7 +91,6 @@ Resources:
       TemplateURL: !Sub "https://${TemplatesBucket}.s3.amazonaws.com/infra/auth.yml"
       Parameters:
         EnvironmentName: !Ref EnvironmentName
-        CallbackUrl: !Ref CallbackUrl
 
   # ---------- Compute Stack (depends on all others) ----------
   ComputeStack:

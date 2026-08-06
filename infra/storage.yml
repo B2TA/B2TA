@@ -1,19 +1,19 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "Grading Assistant - S3 Bucket with Lifecycle Rules, RDS PostgreSQL 16"
+Description: "Grading Assistant - S3 Bucket and publicly-accessible RDS PostgreSQL 18 (shared dev DB)"
 
 Parameters:
   EnvironmentName:
     Type: String
-    Default: grading-assistant
+    Default: rubric-grading-assistant
     Description: Environment name prefix for resource naming
 
-  PrivateSubnet1Id:
+  PublicSubnet1Id:
     Type: String
-    Description: Private subnet 1 ID for RDS
+    Description: Public subnet 1 ID for the publicly-accessible RDS instance
 
-  PrivateSubnet2Id:
+  PublicSubnet2Id:
     Type: String
-    Description: Private subnet 2 ID for RDS
+    Description: Public subnet 2 ID for the publicly-accessible RDS instance
 
   RdsSecurityGroupId:
     Type: String
@@ -21,7 +21,7 @@ Parameters:
 
   DBMasterUsername:
     Type: String
-    Default: gradingadmin
+    Default: postgres
     Description: Master username for RDS
 
   DBMasterPassword:
@@ -35,7 +35,7 @@ Resources:
   GradingFilesBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "grading-assistant-files-${AWS::AccountId}-${AWS::Region}"
+      BucketName: !Sub "${EnvironmentName}-${AWS::AccountId}"
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -45,56 +45,20 @@ Resources:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
-      LifecycleConfiguration:
-        Rules:
-          - Id: ExportCleanup30Days
-            Prefix: "exports/"
-            Status: Enabled
-            ExpirationInDays: 30
-          - Id: UploadCleanup180Days
-            Prefix: "uploads/"
-            Status: Enabled
-            ExpirationInDays: 180
       VersioningConfiguration:
-        Status: Suspended
+        Status: Enabled
       Tags:
         - Key: Name
-          Value: !Sub "${EnvironmentName}-files"
-
-  GradingFilesBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref GradingFilesBucket
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Sid: EnforceHTTPS
-            Effect: Deny
-            Principal: "*"
-            Action: "s3:*"
-            Resource:
-              - !GetAtt GradingFilesBucket.Arn
-              - !Sub "${GradingFilesBucket.Arn}/*"
-            Condition:
-              Bool:
-                "aws:SecureTransport": "false"
-          - Sid: EnforceEncryption
-            Effect: Deny
-            Principal: "*"
-            Action: "s3:PutObject"
-            Resource: !Sub "${GradingFilesBucket.Arn}/*"
-            Condition:
-              StringNotEquals:
-                "s3:x-amz-server-side-encryption": "AES256"
+          Value: !Sub "${EnvironmentName}-${AWS::AccountId}"
 
   # ---------- RDS PostgreSQL ----------
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: Subnet group for Grading Assistant RDS
+      DBSubnetGroupDescription: Subnet group for Grading Assistant RDS (public subnets)
       SubnetIds:
-        - !Ref PrivateSubnet1Id
-        - !Ref PrivateSubnet2Id
+        - !Ref PublicSubnet1Id
+        - !Ref PublicSubnet2Id
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentName}-db-subnet-group"
@@ -104,25 +68,19 @@ Resources:
     Properties:
       DBInstanceIdentifier: !Sub "${EnvironmentName}-db"
       Engine: postgres
-      EngineVersion: "16"
-      DBInstanceClass: db.t4g.medium
-      AllocatedStorage: 50
+      EngineVersion: "18.4"
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: 20
       StorageType: gp3
-      MultiAZ: true
-      DBName: gradingdb
+      MultiAZ: false
+      DBName: grading_assistant
       MasterUsername: !Ref DBMasterUsername
       MasterUserPassword: !Ref DBMasterPassword
       DBSubnetGroupName: !Ref DBSubnetGroup
       VPCSecurityGroups:
         - !Ref RdsSecurityGroupId
-      EnableIAMDatabaseAuthentication: true
-      BackupRetentionPeriod: 7
-      PreferredBackupWindow: "03:00-04:00"
-      PreferredMaintenanceWindow: "sun:05:00-sun:06:00"
-      DeletionProtection: true
-      StorageEncrypted: true
-      MaxAllocatedStorage: 200
-      PubliclyAccessible: false
+      BackupRetentionPeriod: 1
+      PubliclyAccessible: true
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentName}-rds"

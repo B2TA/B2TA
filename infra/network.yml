@@ -4,7 +4,7 @@ Description: "Grading Assistant - VPC, Subnets, Internet Gateway, NAT, Route Tab
 Parameters:
   EnvironmentName:
     Type: String
-    Default: grading-assistant
+    Default: rubric-grading-assistant
     Description: Environment name prefix for resource naming
 
   VpcCidr:

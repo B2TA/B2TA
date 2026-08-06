@@ -4,7 +4,7 @@ Description: "Grading Assistant - Security Groups and IAM Roles"
 Parameters:
   EnvironmentName:
     Type: String
-    Default: grading-assistant
+    Default: rubric-grading-assistant
     Description: Environment name prefix for resource naming
 
   VpcId:
@@ -103,8 +103,8 @@ Resources:
         - IpProtocol: tcp
           FromPort: 5432
           ToPort: 5432
-          SourceSecurityGroupId: !Ref EcsSecurityGroup
-          Description: PostgreSQL from ECS tasks
+          CidrIp: "0.0.0.0/0"
+          Description: PostgreSQL from anywhere (shared dev DB - matches hand-rolled SG)
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentName}-rds-sg"

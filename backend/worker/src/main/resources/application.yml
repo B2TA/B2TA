@@ -5,7 +5,7 @@ spring:
     active: worker
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/grading_assistant
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/grading_assistant}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
