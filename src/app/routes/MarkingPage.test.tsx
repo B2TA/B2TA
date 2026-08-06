@@ -96,9 +96,11 @@ const submission = {
 }
 
 let savedRecord: Record<string, unknown> | null
+let evidenceSuggestions: Array<Record<string, unknown>>
 
 beforeEach(() => {
   savedRecord = null
+  evidenceSuggestions = []
   window.history.pushState({}, "", "/sessions/session-1/mark/submission-1")
   vi.stubGlobal(
     "fetch",
@@ -107,14 +109,29 @@ beforeEach(() => {
       if (url.endsWith("/sessions/session-1")) return Response.json(session)
       if (url.endsWith("/rubric")) return Response.json(rubric)
       if (url.endsWith("/submissions")) return Response.json([submission])
+      if (url.endsWith("/evidence-suggestions") && init?.method === "POST") {
+        evidenceSuggestions = [
+          {
+            id: "suggestion-1",
+            submissionId: submission.id,
+            criterionId: "criterion-1",
+            passageStart: 2,
+            passageEnd: 14,
+            rationale: "This passage states the central claim.",
+            confidence: 0.91,
+            createdAt: "2026-08-06T20:00:00.000Z",
+          },
+        ]
+        return Response.json(evidenceSuggestions)
+      }
+      if (url.endsWith("/evidence-suggestions"))
+        return Response.json(evidenceSuggestions)
       if (url.endsWith("/grading-record") && init?.method === "PUT") {
         const body = JSON.parse(String(init.body))
         savedRecord = {
           id: "record-1",
           submissionId: submission.id,
           ...body,
-          confirmedMatches: [],
-          suggestedMatches: [],
           savedAt: "2026-08-06T20:00:00.000Z",
           createdAt: "2026-08-06T20:00:00.000Z",
         }
@@ -127,6 +144,22 @@ beforeEach(() => {
       return new Response("Not found", { status: 404 })
     }),
   )
+})
+
+test("AI highlights likely rubric evidence without selecting a mark", async () => {
+  const user = userEvent.setup()
+  render(<App />)
+
+  await screen.findByRole("heading", { name: "Alex Able" })
+  await user.click(screen.getByRole("button", { name: "Find rubric evidence" }))
+
+  expect(await screen.findByText("clear thesis")).toBeVisible()
+  expect(
+    screen.getByText("This passage states the central claim."),
+  ).toBeVisible()
+  expect(screen.getByText("Suggested for Thesis clarity")).toBeVisible()
+  expect(screen.getAllByRole("radio", { checked: false })).toHaveLength(3)
+  expect(screen.queryByText(/recommended score/i)).not.toBeInTheDocument()
 })
 
 test("TA grades one submission and restores the saved record", async () => {

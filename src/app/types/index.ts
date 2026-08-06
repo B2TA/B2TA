@@ -94,8 +94,6 @@ export interface Submission {
 
 // --- AI Matches ---
 
-export type MatchState = "suggested" | "confirmed" | "rejected"
-
 export interface SuggestedMatch {
   id: string
   submissionId: string
@@ -104,24 +102,6 @@ export interface SuggestedMatch {
   passageEnd: number
   rationale: string
   confidence: number
-  matchState: MatchState
-  isStale: boolean
-  discardReason: string | null
-  createdAt: string
-}
-
-export type ConfirmedMatchOrigin = "ta_confirmed" | "ta_authored"
-
-export interface ConfirmedMatch {
-  id: string
-  submissionId: string
-  criterionId: string
-  passageStart: number
-  passageEnd: number
-  rationale: string
-  confidence: number | null
-  origin: ConfirmedMatchOrigin
-  sourceMatchId: string | null
   createdAt: string
 }
 
@@ -132,8 +112,6 @@ export interface GradingRecord {
   submissionId: string
   overallFeedback: string
   criterionScores: CriterionScore[]
-  confirmedMatches: ConfirmedMatch[]
-  suggestedMatches: SuggestedMatch[]
   savedAt: string | null
   createdAt: string
 }
@@ -154,15 +132,6 @@ export interface SaveGradingRequest {
     selectedLevelId: string | null
     overridePoints: number | null
     criterionFeedback: string
-  }>
-  confirmedMatches: Array<{
-    criterionId: string
-    passageStart: number
-    passageEnd: number
-    rationale: string
-    confidence: number | null
-    origin: ConfirmedMatchOrigin
-    sourceMatchId: string | null
   }>
 }
 

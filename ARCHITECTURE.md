@@ -12,9 +12,9 @@ flowchart LR
     SPA -->|JSON over /api| API[Express and TypeScript monolith]
     API --> STORE[In-memory store]
 
-    API -. future module .-> CANVAS[Canvas adapter]
-    API -. future module .-> AI[AI assistance]
-    API -. future module .-> FILES[File ingestion]
+    API --> CANVAS[Canvas adapter]
+    API --> AI[AWS Bedrock Claude Sonnet 4.6]
+    API --> FILES[PDF ingestion]
     API -. future replacement .-> DATA[Durable persistence]
 ```
 
@@ -24,9 +24,8 @@ may be separated into modules as they are implemented. The current code does not
 background queues or independently deployed services.
 
 The current `MemoryStore` is intentionally temporary. It holds grading sessions, rubrics,
-and empty submission collections for local frontend integration, and all state resets on
-process restart. Durable persistence, uploads, grading records, analysis, Canvas submission
-import, and grade publication remain future vertical slices.
+submissions, grading records, and validated evidence suggestions, and all state resets on
+process restart. Durable persistence and grade publication remain future vertical slices.
 
 The current deployment model has one trusted operator. It has no login or multi-user
 authorization boundary. Authentication becomes required only if B2TA is opened to
@@ -52,7 +51,7 @@ flowchart LR
     LMSIMPORT[Import through an LMS adapter]
     SESSION[B2TA grading session]
     ANALYZE[Extract and suggest evidence]
-    GRADE[TA confirms evidence and assigns scores]
+    GRADE[TA reviews suggestions and assigns scores]
     REVIEW[TA reviews the batch]
     EXPORT[Download export]
     PUBLISH[Publish through source LMS adapter]
@@ -78,7 +77,7 @@ The backend stays monolithic while keeping clear internal ownership:
 | Grading core | Sessions, rubrics, submissions, evidence, scores, feedback, and review | Sessions, rubrics, and Canvas submission batches started |
 | Persistence | Store and retrieve canonical state | In-memory implementation only |
 | File ingestion | Accept files and normalize their text | Canvas PDFs retained for inline display and parsed for embedded text; scanned, encrypted, and unreadable files classified |
-| AI assistance | Suggest evidence and feedback without assigning scores | Not implemented |
+| AI assistance | Suggest evidence without assigning scores | Bedrock Claude Sonnet 4.6 integration implemented |
 | LMS adapters | Import external data and publish reviewed results | Canvas PAT, rubric, roster, attempt, text-entry, and PDF import implemented |
 
 An internal module boundary is not a deployment boundary. New capabilities should remain
@@ -94,7 +93,7 @@ The core uses B2TA-owned concepts rather than Canvas payloads:
 - a **Submission** contains normalized text and Student Identity metadata;
 - a **Suggested Match** relates one Criterion to a real passage with rationale and
   confidence;
-- a **Grading Record** contains TA-selected scores, confirmed evidence, and feedback;
+- a **Grading Record** contains TA-selected scores and feedback;
 - a **Review Confirmation** gates export or LMS publication.
 
 Provider identifiers are external references alongside canonical entities. They are not
@@ -117,7 +116,7 @@ payloads belong only to the Canvas adapter.
 
 ## Safety invariants
 
-- AI output can suggest evidence or feedback but cannot author a score.
+- AI output can highlight possible evidence but cannot author or recommend a score.
 - Suggested passages must resolve to normalized submission text before display.
 - Missing evidence never prevents manual grading.
 - Results leave B2TA only after TA review and an explicit export or publish action.

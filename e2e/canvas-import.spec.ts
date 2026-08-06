@@ -44,9 +44,49 @@ test("TA imports a Canvas rubric, roster, and PDF submission batch", async ({
     true,
   )
 
+  const sessionId = page.url().match(/\/sessions\/([^/]+)/)?.[1]
+  expect(sessionId).toBeTruthy()
+  const rubric = await page.request
+    .get(`/api/sessions/${sessionId}/rubric`)
+    .then((response) => response.json())
+  const submissions = await page.request
+    .get(`/api/sessions/${sessionId}/submissions`)
+    .then((response) => response.json())
+  await page.route(
+    `**/api/sessions/${sessionId}/submissions/${submissions[0].id}/evidence-suggestions`,
+    async (route) => {
+      const suggestions =
+        route.request().method() === "POST"
+          ? [
+              {
+                id: "e2e-suggestion",
+                submissionId: submissions[0].id,
+                criterionId: rubric.criteria[0].id,
+                passageStart: 0,
+                passageEnd: 31,
+                rationale: "This passage appears to state the central claim.",
+                confidence: 0.9,
+                createdAt: "2026-08-06T20:00:00.000Z",
+              },
+            ]
+          : []
+      await route.fulfill({ json: suggestions })
+    },
+  )
+
   await page.getByRole("link", { name: "Grade submission" }).click()
   await expect(page.getByRole("heading", { name: "Alex Able" })).toBeVisible()
   await expect(page.getByTitle("Alex Able submission PDF")).toBeVisible()
+  await page.getByRole("button", { name: "Find rubric evidence" }).click()
+  await expect(
+    page.getByText("This passage appears to state the central claim."),
+  ).toBeVisible()
+  await expect(page.getByTitle("Suggested for Thesis clarity")).toHaveText(
+    "HW1 machine-readable submission",
+  )
+  await expect(
+    page.getByRole("radio", { name: "Strong — 5 points" }),
+  ).not.toBeChecked()
   await page.getByRole("radio", { name: "Strong — 5 points" }).click()
   await page
     .getByLabel("Feedback for Thesis clarity")

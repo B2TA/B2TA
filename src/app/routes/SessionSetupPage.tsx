@@ -8,7 +8,10 @@ import type { Rubric, Session, Submission } from "../types"
 type CanvasConnection = {
   connected: true
   baseUrl: string
-  user: { id: number name: string }
+  user: {
+    id: number
+    name: string
+  }
 }
 
 type CanvasCourse = {

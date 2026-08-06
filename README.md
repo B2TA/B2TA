@@ -12,8 +12,8 @@ Built for the UBC CIC Summer 2026 Hackathon (theme: *Student Success Tools*).
 ## Product boundary
 
 B2TA owns the grading experience. A TA creates or resumes a grading session, reviews a
-rubric beside each submission, confirms or rejects suggested evidence, selects scores,
-writes feedback, reviews the batch, and publishes or exports the completed results.
+rubric beside each submission and AI-highlighted passages, selects scores, writes
+feedback, reviews the batch, and publishes or exports the completed results.
 
 Learning management systems connect through adapters:
 
@@ -39,17 +39,18 @@ and makes consistent grading harder across a long batch.
 
 ## What B2TA does
 
-For each rubric criterion, B2TA proposes relevant passages and explains each match. The
-TA confirms, rejects, or adds evidence, then explicitly selects a performance level or
-enters a score. Before anything leaves B2TA, a review screen summarizes the full batch
-and flags incomplete or exceptional records.
+For each rubric criterion, B2TA highlights potentially relevant passages and explains why
+they may apply. The TA may use or ignore those reading aids, then explicitly selects a
+performance level or enters a score. Before anything leaves B2TA, a review screen
+summarizes the full batch and flags incomplete or exceptional records.
 
 Students receive faster feedback, more consistent application of the rubric, and comments
 anchored to evidence from their own work.
 
 ### Product commitments
 
-1. **The AI never grades.** It proposes evidence and feedback; the TA assigns every score.
+1. **The AI never grades.** It highlights possible evidence; the TA assigns every score
+   and writes the feedback.
 2. **Evidence must be traceable.** A suggested passage must resolve to text in the stored
    submission before B2TA displays it.
 3. **Publication is deliberate.** No grade is exported or published to an LMS until the
@@ -64,10 +65,9 @@ process. The frontend calls `/api`; during local development Vite proxies those 
 to the backend. All grading features, file processing, AI calls, and LMS adapters belong
 inside that backend monolith as ordinary modules.
 
-The first backend slice uses an in-memory store so the frontend has a real HTTP contract
-without committing to production infrastructure too early. State resets whenever the
-backend restarts. Durable persistence, file storage, AI analysis, and Canvas connectivity
-are not implemented yet.
+The backend uses an in-memory store so the frontend has a real HTTP contract without
+committing to production infrastructure too early. State resets whenever the backend
+restarts. Durable persistence and production file storage are not implemented yet.
 
 The current product scope is a trusted, single-user application. B2TA does not require a
 login or multi-user authorization for this phase. If it becomes a shared deployment,
@@ -78,8 +78,9 @@ access.
 |---|---|
 | Frontend | React 19, Vite 8, Tailwind CSS v4 — Amplify Hosting |
 | Backend | Express 5 and TypeScript — one monolithic process |
-| Current state | In-memory store for sessions, rubrics, submission batches, and PDF artifacts |
-| Planned modules | Persistence, file ingestion, AI assistance, and LMS adapters |
+| Current state | In-memory store for sessions, rubrics, submissions, grading records, PDF artifacts, and evidence suggestions |
+| AI runtime | AWS Bedrock with Claude Sonnet 4.6, called from the backend monolith |
+| Planned modules | Durable persistence and grade publication |
 | LMS integration | Provider-neutral adapter boundary; Canvas first |
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the system and integration boundaries.
@@ -89,17 +90,18 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the system and integration boundari
 | Area | State |
 |---|---|
 | Session dashboard | Active routed frontend with real API-backed list, create, resume, and delete flows |
-| High-fidelity marking prototype | Retained in `src/App.tsx` as a fixture-backed design reference |
-| Backend monolith | Express API with sessions, rubrics, Canvas submission batches, and protected PDF delivery |
+| Marking workspace | Real PDF-and-rubric grading with TA-authored scores and feedback |
+| Backend monolith | Express API with sessions, rubrics, Canvas submission batches, PDF delivery, and grading records |
 | Backend persistence | Not implemented; current state is local and in memory |
 | Canvas API feasibility | Verified against the hackathon Canvas instance |
 | Canvas connection | Personal access token validation, course/assignment selection, and rubric import implemented |
 | Canvas submissions | Roster, attempts, text entries, missing work, PDF display, and embedded-text extraction implemented |
 | Canvas grade publication | Not implemented |
+| AI evidence suggestions | Bedrock Claude Sonnet 4.6 highlights validated rubric-linked passages; the AI never assigns scores |
 | End-to-end production workflow | In progress |
 
-`src/main.tsx` mounts the routed standalone application. Marking and review routes remain
-placeholder pages until their full-stack slices are implemented.
+`src/main.tsx` mounts the routed standalone application. The marking route is active;
+batch review remains a placeholder until its full-stack slice is implemented.
 
 ## Running locally
 

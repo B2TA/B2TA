@@ -6,6 +6,7 @@ import type {
   Rubric,
   Session,
   Submission,
+  SuggestedMatch,
 } from "./types.js"
 
 export type SubmissionInput = Omit<Submission, "id" | "sessionId" | "createdAt" | "artifactUrl" | "storageKey" | "position"> & {
@@ -54,6 +55,7 @@ export class MemoryStore {
   readonly #submissions = new Map<string, Submission[]>()
   readonly #artifacts = new Map<string, SubmissionArtifact>()
   readonly #gradingRecords = new Map<string, GradingRecord>()
+  readonly #suggestions = new Map<string, SuggestedMatch[]>()
 
   listSessions(): Session[] {
     return [...this.#sessions.values()].sort((a, b) =>
@@ -85,6 +87,7 @@ export class MemoryStore {
     for (const submission of this.#submissions.get(id) ?? []) {
       this.#artifacts.delete(submission.id)
       this.#gradingRecords.delete(submission.id)
+      this.#suggestions.delete(submission.id)
     }
     this.#rubrics.delete(id)
     this.#submissions.delete(id)
@@ -162,6 +165,7 @@ export class MemoryStore {
     for (const submission of this.#submissions.get(sessionId) ?? []) {
       this.#artifacts.delete(submission.id)
       this.#gradingRecords.delete(submission.id)
+      this.#suggestions.delete(submission.id)
     }
     const now = new Date().toISOString()
     const submissions = input.map(({ artifact, ...item }, position) => {
@@ -216,12 +220,29 @@ export class MemoryStore {
           )?.id ?? randomUUID(),
         gradingRecordId,
       })),
-      confirmedMatches: [],
-      suggestedMatches: [],
       savedAt: now,
       createdAt: existing?.createdAt ?? now,
     }
     this.#gradingRecords.set(submissionId, record)
     return record
+  }
+
+  listSuggestions(submissionId: string): SuggestedMatch[] {
+    return this.#suggestions.get(submissionId) ?? []
+  }
+
+  saveSuggestions(
+    submissionId: string,
+    input: Array<Omit<SuggestedMatch, "id" | "submissionId" | "createdAt">>,
+  ): SuggestedMatch[] {
+    const createdAt = new Date().toISOString()
+    const suggestions = input.map((suggestion) => ({
+      ...suggestion,
+      id: randomUUID(),
+      submissionId,
+      createdAt,
+    }))
+    this.#suggestions.set(submissionId, suggestions)
+    return suggestions
   }
 }

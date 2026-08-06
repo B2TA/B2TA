@@ -1,9 +1,15 @@
-import { useMutation, useQuery } from "@tanstack/react-query"
-import { useEffect, useMemo, useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { Link, Navigate, useParams } from "react-router"
 
 import api, { ApiError } from "../api"
-import type { GradingRecord, Rubric, Session, Submission } from "../types"
+import type {
+  GradingRecord,
+  Rubric,
+  Session,
+  Submission,
+  SuggestedMatch,
+} from "../types"
 
 type DraftScore = {
   criterionId: string
@@ -12,7 +18,66 @@ type DraftScore = {
   criterionFeedback: string
 }
 
+function HighlightedSubmission({
+  text,
+  suggestions,
+  rubric,
+}: {
+  text: string
+  suggestions: SuggestedMatch[]
+  rubric: Rubric
+}) {
+  const ordered = [...suggestions].sort(
+    (a, b) => a.passageStart - b.passageStart,
+  )
+  const nonOverlapping = ordered.reduce<SuggestedMatch[]>(
+    (kept, suggestion) => {
+      const previous = kept.at(-1)
+      if (!previous || suggestion.passageStart >= previous.passageEnd)
+        kept.push(suggestion)
+      return kept
+    },
+    [],
+  )
+  const content: ReactNode[] = []
+  let cursor = 0
+  nonOverlapping.forEach((suggestion) => {
+    const criterion = rubric.criteria.find(
+      (item) => item.id === suggestion.criterionId,
+    )
+    content.push(text.slice(cursor, suggestion.passageStart))
+    content.push(
+      <mark
+        className="rounded-sm border-b-2 px-0.5 text-inherit"
+        key={suggestion.id}
+        style={{
+          backgroundColor: `${criterion?.displayColor ?? "#B45309"}20`,
+          borderColor: criterion?.displayColor ?? "#B45309",
+        }}
+        title={`Suggested for ${criterion?.title ?? "rubric criterion"}`}
+      >
+        {text.slice(suggestion.passageStart, suggestion.passageEnd)}
+      </mark>,
+    )
+    cursor = suggestion.passageEnd
+  })
+  content.push(text.slice(cursor))
+
+  return (
+    <article className="mx-auto min-h-[34rem] max-w-3xl border border-slate-300 bg-white px-8 py-10 text-[15px] leading-8 whitespace-pre-wrap shadow-lg sm:px-12">
+      {suggestions.length === 0 ? (
+        <p className="mb-8 border-l-2 border-amber-600 pl-4 text-sm leading-6 text-slate-500">
+          Ask B2TA to find likely rubric evidence. Suggestions will appear as
+          highlights here and never select a mark.
+        </p>
+      ) : null}
+      {content}
+    </article>
+  )
+}
+
 export default function MarkingPage() {
+  const queryClient = useQueryClient()
   const { id = "", submissionId } = useParams<{
     id: string
     submissionId: string
@@ -21,6 +86,7 @@ export default function MarkingPage() {
   const [overallFeedback, setOverallFeedback] = useState("")
   const [loaded, setLoaded] = useState(false)
   const [dirty, setDirty] = useState(false)
+  const [documentView, setDocumentView] = useState<"pdf" | "evidence">("pdf")
 
   const sessionQuery = useQuery({
     queryKey: ["sessions", id],
@@ -42,6 +108,21 @@ export default function MarkingPage() {
     queryFn: () =>
       api.get<GradingRecord>(
         `/sessions/${id}/submissions/${submission!.id}/grading-record`,
+      ),
+    enabled: Boolean(submission),
+    retry: false,
+  })
+  const suggestionsQuery = useQuery({
+    queryKey: [
+      "sessions",
+      id,
+      "submissions",
+      submission?.id,
+      "evidence-suggestions",
+    ],
+    queryFn: () =>
+      api.get<SuggestedMatch[]>(
+        `/sessions/${id}/submissions/${submission!.id}/evidence-suggestions`,
       ),
     enabled: Boolean(submission),
     retry: false,
@@ -82,6 +163,19 @@ export default function MarkingPage() {
       ),
     onSuccess: () => setDirty(false),
   })
+  const suggestionsMutation = useMutation({
+    mutationFn: () =>
+      api.post<SuggestedMatch[]>(
+        `/sessions/${id}/submissions/${submission!.id}/evidence-suggestions`,
+      ),
+    onSuccess: (suggestions) => {
+      queryClient.setQueryData(
+        ["sessions", id, "submissions", submission!.id, "evidence-suggestions"],
+        suggestions,
+      )
+      setDocumentView("evidence")
+    },
+  })
 
   const completed = scores.filter(
     (score) => score.selectedLevelId !== null || score.overridePoints !== null,
@@ -104,6 +198,7 @@ export default function MarkingPage() {
       (sum, item) => sum + (item.maxPoints ?? 0),
       0,
     ) ?? 0
+  const suggestions = suggestionsQuery.data ?? []
 
   function changeScore(criterionId: string, changes: Partial<DraftScore>) {
     setScores((current) =>
@@ -194,7 +289,7 @@ export default function MarkingPage() {
           className="min-h-[65vh] border-r border-slate-300 bg-slate-200 p-3 sm:p-5"
           aria-label="Submitted document"
         >
-          <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                 Student submission
@@ -203,20 +298,62 @@ export default function MarkingPage() {
                 {submission.originalFilename}
               </p>
             </div>
-            <a
-              className="border border-slate-400 bg-white px-3 py-2 text-xs font-semibold hover:border-amber-600 hover:text-amber-700"
-              href={submission.artifactUrl ?? "#"}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open PDF
-            </a>
+            <div className="flex items-center gap-2">
+              <div
+                className="flex border border-slate-400 bg-white p-0.5"
+                aria-label="Submission view"
+              >
+                <button
+                  aria-pressed={documentView === "pdf"}
+                  className={`px-3 py-1.5 text-xs font-semibold ${
+                    documentView === "pdf"
+                      ? "bg-slate-800 text-white"
+                      : "text-slate-600"
+                  }`}
+                  onClick={() => setDocumentView("pdf")}
+                  type="button"
+                >
+                  PDF
+                </button>
+                <button
+                  aria-pressed={documentView === "evidence"}
+                  className={`px-3 py-1.5 text-xs font-semibold ${
+                    documentView === "evidence"
+                      ? "bg-slate-800 text-white"
+                      : "text-slate-600"
+                  }`}
+                  disabled={!submission.extractedText}
+                  onClick={() => setDocumentView("evidence")}
+                  type="button"
+                >
+                  Evidence text
+                </button>
+              </div>
+              <a
+                className="border border-slate-400 bg-white px-3 py-2 text-xs font-semibold hover:border-amber-600 hover:text-amber-700"
+                href={submission.artifactUrl ?? "#"}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open PDF
+              </a>
+            </div>
           </div>
-          <iframe
-            className="h-[calc(100vh-9.5rem)] min-h-[34rem] w-full rounded-sm border border-slate-400 bg-white shadow-lg"
-            src={submission.artifactUrl ?? undefined}
-            title={`${submission.studentDisplayName} submission PDF`}
-          />
+          {documentView === "pdf" ? (
+            <iframe
+              className="h-[calc(100vh-9.5rem)] min-h-[34rem] w-full rounded-sm border border-slate-400 bg-white shadow-lg"
+              src={submission.artifactUrl ?? undefined}
+              title={`${submission.studentDisplayName} submission PDF`}
+            />
+          ) : (
+            <div className="h-[calc(100vh-9.5rem)] min-h-[34rem] overflow-y-auto">
+              <HighlightedSubmission
+                text={submission.extractedText ?? ""}
+                suggestions={suggestions}
+                rubric={rubricQuery.data}
+              />
+            </div>
+          )}
         </section>
 
         <aside className="bg-[#f8fafc] lg:h-[calc(100vh-4rem)] lg:overflow-y-auto">
@@ -247,6 +384,33 @@ export default function MarkingPage() {
             <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
               {completed} of {rubricQuery.data.criteria.length} criteria scored
             </p>
+            <button
+              className="mt-4 min-h-10 w-full border border-sky-700 bg-sky-50 px-4 text-sm font-bold text-sky-900 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={
+                !submission.extractedText || suggestionsMutation.isPending
+              }
+              onClick={() => suggestionsMutation.mutate()}
+              type="button"
+            >
+              {suggestionsMutation.isPending
+                ? "Finding evidence…"
+                : suggestions.length > 0
+                  ? "Refresh rubric evidence"
+                  : "Find rubric evidence"}
+            </button>
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              AI highlights places to inspect. It never selects or recommends a
+              mark.
+            </p>
+            {suggestionsMutation.isError ? (
+              <p
+                className="mt-2 text-xs font-semibold text-red-700"
+                role="alert"
+              >
+                Evidence suggestions are unavailable. Check the Bedrock
+                configuration and try again.
+              </p>
+            ) : null}
           </div>
 
           <div className="space-y-4 p-4">
@@ -255,6 +419,9 @@ export default function MarkingPage() {
                 (item) => item.criterionId === criterion.id,
               )
               if (!score) return null
+              const criterionSuggestions = suggestions.filter(
+                (suggestion) => suggestion.criterionId === criterion.id,
+              )
               return (
                 <fieldset
                   className="border border-slate-200 bg-white p-4 shadow-sm"
@@ -276,6 +443,34 @@ export default function MarkingPage() {
                     <p className="mt-2 text-xs leading-5 text-slate-600">
                       {criterion.description}
                     </p>
+                  ) : null}
+                  {criterionSuggestions.length > 0 ? (
+                    <div className="mt-4 space-y-2">
+                      {criterionSuggestions.map((suggestion) => (
+                        <button
+                          className="block w-full border-l-2 bg-sky-50 p-3 text-left hover:bg-sky-100"
+                          key={suggestion.id}
+                          onClick={() => setDocumentView("evidence")}
+                          style={{ borderColor: criterion.displayColor }}
+                          type="button"
+                        >
+                          <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-sky-800">
+                            Suggested for {criterion.title}
+                          </span>
+                          <span className="mt-1 block text-xs font-semibold leading-5 text-slate-800">
+                            “
+                            {submission.extractedText?.slice(
+                              suggestion.passageStart,
+                              suggestion.passageEnd,
+                            )}
+                            ”
+                          </span>
+                          <span className="mt-1 block text-xs leading-5 text-slate-600">
+                            {suggestion.rationale}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   ) : null}
                   <div className="mt-4 space-y-2">
                     {criterion.performanceLevels.map((level) => (

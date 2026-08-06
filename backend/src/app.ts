@@ -6,6 +6,12 @@ import express, {
 
 import { CanvasAdapter, CanvasError } from "./canvas.js"
 import {
+  BedrockEvidenceSuggester,
+  EvidenceSuggestionError,
+  type EvidenceCandidate,
+  type EvidenceSuggester,
+} from "./evidence.js"
+import {
   MemoryStore,
   type GradingRecordInput,
   type RubricInput,
@@ -124,9 +130,69 @@ function parseGradingRecord(
   }
 }
 
+function validateEvidenceCandidates(
+  candidates: EvidenceCandidate[],
+  rubric: NonNullable<ReturnType<MemoryStore["getRubric"]>>,
+  submissionText: string,
+) {
+  const seen = new Set<string>()
+  return candidates.flatMap((candidate) => {
+    if (typeof candidate !== "object" || candidate === null) return []
+    const criterion = rubric.criteria.find(
+      (item) => item.id === candidate.criterionId,
+    )
+    const firstOccurrence =
+      typeof candidate.passageText === "string"
+        ? submissionText.indexOf(candidate.passageText)
+        : -1
+    const uniqueOccurrence =
+      firstOccurrence >= 0 &&
+      submissionText.indexOf(candidate.passageText, firstOccurrence + 1) === -1
+    const passageStart = Number.isInteger(candidate.passageStart)
+      ? candidate.passageStart as number
+      : firstOccurrence
+    const passageEnd = Number.isInteger(candidate.passageEnd)
+      ? candidate.passageEnd as number
+      : passageStart + (candidate.passageText?.length ?? 0)
+    const validOffsets =
+      uniqueOccurrence &&
+      passageStart >= 0 &&
+      passageEnd > passageStart &&
+      passageEnd <= submissionText.length
+    if (
+      !criterion ||
+      !validOffsets ||
+      typeof candidate.passageText !== "string" ||
+      submissionText.slice(passageStart, passageEnd) !==
+        candidate.passageText ||
+      typeof candidate.rationale !== "string" ||
+      candidate.rationale.trim().length === 0 ||
+      candidate.rationale.length > 1_000 ||
+      typeof candidate.confidence !== "number" ||
+      !Number.isFinite(candidate.confidence) ||
+      candidate.confidence < 0 ||
+      candidate.confidence > 1
+    )
+      return []
+    const key = `${criterion.id}:${passageStart}:${passageEnd}`
+    if (seen.has(key)) return []
+    seen.add(key)
+    return [
+      {
+        criterionId: criterion.id,
+        passageStart,
+        passageEnd,
+        rationale: candidate.rationale.trim(),
+        confidence: candidate.confidence,
+      },
+    ]
+  })
+}
+
 export function createApp(
   store = new MemoryStore(),
   canvas = new CanvasAdapter(),
+  evidenceSuggester: EvidenceSuggester = new BedrockEvidenceSuggester(),
 ) {
   const app = express()
 
@@ -236,6 +302,70 @@ export function createApp(
           "Score every criterion with a rubric level or valid point override",
         )
       return response.json(store.saveGradingRecord(submission.id, input))
+    },
+  )
+
+  app.get(
+    "/api/sessions/:id/submissions/:submissionId/evidence-suggestions",
+    (request, response) => {
+      const submission = store.getSubmission(
+        request.params.id,
+        request.params.submissionId,
+      )
+      if (!submission)
+        return sendError(
+          response,
+          404,
+          "submission_not_found",
+          "Submission not found",
+        )
+      return response.json(store.listSuggestions(submission.id))
+    },
+  )
+
+  app.post(
+    "/api/sessions/:id/submissions/:submissionId/evidence-suggestions",
+    async (request, response) => {
+      const submission = store.getSubmission(
+        request.params.id,
+        request.params.submissionId,
+      )
+      if (!submission)
+        return sendError(
+          response,
+          404,
+          "submission_not_found",
+          "Submission not found",
+        )
+      const rubric = store.getRubric(request.params.id)
+      if (!rubric)
+        return sendError(
+          response,
+          409,
+          "rubric_not_found",
+          "Import a rubric before requesting suggestions",
+        )
+      if (!submission.extractedText)
+        return sendError(
+          response,
+          422,
+          "submission_text_unavailable",
+          "This submission has no machine-readable text",
+        )
+      const candidates = await evidenceSuggester.suggest({
+        rubric,
+        submissionText: submission.extractedText,
+      })
+      return response.json(
+        store.saveSuggestions(
+          submission.id,
+          validateEvidenceCandidates(
+            candidates,
+            rubric,
+            submission.extractedText,
+          ),
+        ),
+      )
     },
   )
 
@@ -436,6 +566,14 @@ export function createApp(
     ) => {
       if (error instanceof CanvasError) {
         return sendError(response, error.status, error.code, error.message)
+      }
+      if (error instanceof EvidenceSuggestionError) {
+        return sendError(
+          response,
+          502,
+          "evidence_suggestion_failed",
+          error.message,
+        )
       }
       console.error(error)
       return sendError(

@@ -13,11 +13,11 @@ The ordered set of student submissions graded within one Grading Session, regard
 _Avoid_: Canvas queue
 
 **Grading Record**:
-The TA-authored scores, confirmed evidence, and feedback for one submission.
+The TA-authored scores and feedback for one submission.
 _Avoid_: AI grade
 
 **Suggested Match**:
-An AI-proposed association between a rubric criterion and a passage in a submission. It is evidence for TA review, not a score.
+An AI-proposed association between a rubric criterion and a passage in a submission. It is a reading aid the TA may use or ignore, not a score or a decision requiring confirmation.
 _Avoid_: AI grade, automatic assessment
 
 **LMS Integration**:

@@ -76,8 +76,17 @@ export type GradingRecord = {
   submissionId: string
   overallFeedback: string
   criterionScores: CriterionScore[]
-  confirmedMatches: []
-  suggestedMatches: []
   savedAt: string
+  createdAt: string
+}
+
+export type SuggestedMatch = {
+  id: string
+  submissionId: string
+  criterionId: string
+  passageStart: number
+  passageEnd: number
+  rationale: string
+  confidence: number
   createdAt: string
 }
