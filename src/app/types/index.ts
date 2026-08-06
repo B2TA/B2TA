@@ -1,6 +1,6 @@
 /**
  * Shared TypeScript interfaces matching backend DTOs.
- * These mirror the PostgreSQL schema defined in the design document.
+ * These define the frontend view of B2TA's canonical grading model.
  */
 
 // --- Core Identity ---
@@ -32,7 +32,7 @@ export interface CreateSessionRequest {
 export interface Rubric {
   id: string;
   sessionId: string;
-  s3Key: string | null;
+  storageKey: string | null;
   sourceFormat: "pdf" | "csv" | "xlsx" | "manual" | null;
   criteria: Criterion[];
   createdAt: string;
@@ -76,10 +76,10 @@ export type ExtractionFailureReason =
 export interface Submission {
   id: string;
   sessionId: string;
-  s3Key: string;
+  storageKey: string;
   originalFilename: string;
   studentDisplayName: string;
-  canvasSubmissionId: string | null;
+  externalSubmissionId: string | null;
   identityStatus: IdentityStatus;
   extractionStatus: ExtractionStatus;
   extractionFailureReason: ExtractionFailureReason | null;

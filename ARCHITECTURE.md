@@ -1,167 +1,138 @@
 # B2TA — Architecture
 
-Serverless on AWS. The browser talks only to our API; Canvas credentials and Bedrock
-permissions stay server-side.
+B2TA is a standalone grading web application with optional LMS integrations. It owns the
+grading experience; Canvas is the first external system connected to it, not the host of
+the product.
 
-Region `us-east-1`.
-
-## System diagram
-
-```mermaid
-graph TB
-    TA["TA Browser"]
-
-    subgraph AWS["AWS"]
-        AMP["Amplify Hosting<br/>React 19 + Vite + Tailwind"]
-        APIGW["API Gateway<br/>HTTP API"]
-
-        subgraph LAMBDA["Lambda"]
-            L1["canvas-adapter<br/>rubric · roster · sync"]
-            L2["analyze<br/>extract · prompt · verify"]
-            L3["batch-worker<br/>pre-analyze queue"]
-        end
-
-        BR["Amazon Bedrock<br/>Claude Sonnet 4.5"]
-        DDB[("DynamoDB<br/>analyses · overrides")]
-        S3[("S3<br/>attachments · fixtures")]
-        SQS["SQS"]
-        SM["Secrets Manager<br/>Canvas token"]
-        TX["Textract<br/>scanned PDFs"]
-        CW["CloudWatch"]
-    end
-
-    CANVAS["Canvas LMS<br/>canvas.cic.wtarit.me"]
-
-    TA -->|"HTTPS"| AMP
-    TA -->|"REST + JSON"| APIGW
-    APIGW --> L1
-    APIGW --> L2
-    L1 --> SM
-    L1 <-->|"rubric · submissions · grades"| CANVAS
-    L1 --> S3
-    L2 --> S3
-    L2 --> BR
-    L2 --> TX
-    L2 --> DDB
-    L2 --> SQS
-    SQS --> L3
-    L3 --> BR
-    L3 --> DDB
-    LAMBDA -.logs.-> CW
-```
-
-## Request flow — grading one submission
+## Current system
 
 ```mermaid
-sequenceDiagram
-    participant TA
-    participant API as API Gateway
-    participant CA as canvas-adapter
-    participant AN as analyze
-    participant C as Canvas
-    participant B as Bedrock
-    participant D as DynamoDB
+flowchart LR
+    TA[TA browser] --> SPA[React SPA]
+    SPA -->|JSON over /api| API[Express and TypeScript monolith]
+    API --> STORE[In-memory store]
 
-    TA->>API: open assignment
-    API->>CA: GET rubric + roster
-    CA->>C: GET /assignments/1 · /submissions
-    C-->>CA: rubric[] + submissions[]
-    CA-->>TA: criteria + student queue
-
-    TA->>API: open student
-    API->>AN: POST /analyze
-    AN->>D: cache hit?
-    alt miss
-        AN->>C: download attachment
-        AN->>AN: extract text · normalize once
-        AN->>B: Converse (forced JSON schema)
-        B-->>AN: scores + evidence quotes
-        AN->>AN: verify quotes verbatim · drop failures
-        AN->>AN: map offsets to (paragraph, offset)
-        AN->>D: cache
-    end
-    AN-->>TA: scores + verified highlights
-
-    TA->>TA: confirm / edit / override
-    TA->>API: POST /sync
-    API->>CA: rubric_assessment + comment
-    CA->>C: PUT /submissions/{user_id}
-    C-->>TA: grade in gradebook
+    API -. future module .-> CANVAS[Canvas adapter]
+    API -. future module .-> AI[AI assistance]
+    API -. future module .-> FILES[File ingestion]
+    API -. future replacement .-> DATA[Durable persistence]
 ```
 
-## Components
+There is one backend process and one deployment unit. HTTP routes, domain logic, storage
+access, file processing, AI assistance, and LMS adapters live in the same application and
+may be separated into modules as they are implemented. The current code does not use
+background queues or independently deployed services.
 
-| Service | Role |
+The current `MemoryStore` is intentionally temporary. It holds grading sessions, rubrics,
+and empty submission collections for local frontend integration, and all state resets on
+process restart. Authentication, durable persistence, uploads, grading records, analysis,
+and Canvas API calls remain future vertical slices.
+
+## Runtime boundary
+
+- The browser communicates only with B2TA's `/api` interface.
+- LMS credentials and provider calls belong in the backend, never in the browser.
+- The backend translates provider data into B2TA's canonical domain objects.
+- A reviewed grade is published only after an explicit TA action.
+- AWS resources are provisioned manually when needed; this repository does not define
+  infrastructure templates.
+
+## Product workflow
+
+A grading session can begin through either manual import or an LMS adapter. Both paths
+produce the same canonical rubric, submission batch, and student identity records.
+
+```mermaid
+flowchart LR
+    MANUAL[Upload rubric and submissions]
+    LMSIMPORT[Import through an LMS adapter]
+    SESSION[B2TA grading session]
+    ANALYZE[Extract and suggest evidence]
+    GRADE[TA confirms evidence and assigns scores]
+    REVIEW[TA reviews the batch]
+    EXPORT[Download export]
+    PUBLISH[Publish through source LMS adapter]
+
+    MANUAL --> SESSION
+    LMSIMPORT --> SESSION
+    SESSION --> ANALYZE --> GRADE --> REVIEW
+    REVIEW --> EXPORT
+    REVIEW --> PUBLISH
+```
+
+Import source does not change the marking experience. A manually created session can be
+exported. A session linked to an LMS can also publish results when it retains the external
+course, assignment, student, criterion, and submission references required by that LMS.
+
+## Backend modules
+
+The backend stays monolithic while keeping clear internal ownership:
+
+| Module | Responsibility | State |
+|---|---|---|
+| HTTP API | Request validation, response formatting, and frontend contract | Initial routes implemented |
+| Grading core | Sessions, rubrics, submissions, evidence, scores, feedback, and review | Sessions and rubrics started |
+| Persistence | Store and retrieve canonical state | In-memory implementation only |
+| File ingestion | Accept files and normalize their text | Not implemented |
+| AI assistance | Suggest evidence and feedback without assigning scores | Not implemented |
+| LMS adapters | Import external data and publish reviewed results | Canvas boundary defined, not implemented |
+| Authentication | Identify a TA and enforce resource ownership | Not implemented |
+
+An internal module boundary is not a deployment boundary. New capabilities should remain
+in the Express application unless operational evidence creates a concrete need to split
+them later.
+
+## Grading core
+
+The core uses B2TA-owned concepts rather than Canvas payloads:
+
+- a **Grading Session** contains one Rubric and one Submission Batch;
+- a **Rubric** contains ordered Criteria and Performance Levels;
+- a **Submission** contains normalized text and Student Identity metadata;
+- a **Suggested Match** relates one Criterion to a real passage with rationale and
+  confidence;
+- a **Grading Record** contains TA-selected scores, confirmed evidence, and feedback;
+- a **Review Confirmation** gates export or LMS publication.
+
+Provider identifiers are external references alongside canonical entities. They are not
+the primary identity of a B2TA domain object.
+
+## LMS adapter contract
+
+Each LMS adapter translates the same provider-neutral operations:
+
+| Operation | Canonical result |
 |---|---|
-| **Amplify Hosting** | Serves the React SPA over CloudFront. Deploy via `scripts/deploy.sh`. |
-| **API Gateway** (HTTP API) | Single entry point. CORS scoped to the Amplify origin. |
-| **Lambda `canvas-adapter`** | All Canvas I/O: rubric, roster, submissions, grade write-back. Handles `Link`-header pagination. |
-| **Lambda `analyze`** | Text extraction → Bedrock → evidence verification → cache. The core of the product. |
-| **Lambda `batch-worker`** | SQS consumer that pre-analyzes the queue so the TA never waits. |
-| **Bedrock** | `us.anthropic.claude-sonnet-4-5-20250929-v1:0`, Converse API with a forced tool schema. |
-| **DynamoDB** | `PK=COURSE#{c}#ASSIGN#{a}`, `SK=USER#{u}#ATTEMPT#{n}`. Keying on attempt means a resubmission re-analyzes instead of serving stale results. |
-| **S3** | Downloaded attachments and offline fixtures. |
-| **Secrets Manager** | Canvas API token. Never reaches the browser. |
-| **Textract** | Fallback when extracted text is under 200 chars (scanned or handwritten). |
+| List accessible courses and assignments | External references and display metadata |
+| Import rubric | Rubric, Criteria, Performance Levels, and provider links |
+| Import roster and submissions | Student Identities, Submission Batch, artifacts, and provider links |
+| Refresh source state | New attempts or metadata without overwriting TA work |
+| Publish reviewed results | Per-student scores and feedback from saved Grading Records |
 
-## The analyze pipeline
+Canvas criterion IDs, pagination links, attachment verifiers, and grade-publication
+payloads belong only to the Canvas adapter.
 
-1. **Extract** — `online_text_entry` → strip HTML. `online_upload` → dispatch by content
-   type: PDF (`pypdf`), DOCX (`python-docx`), `.ipynb` (cell sources), plain text.
-2. **Normalize once** — ligatures, soft hyphens, collapsed whitespace. The normalized
-   string is the single source of truth for prompting, verification, and rendering. Using
-   two different strings is what makes highlights land mid-word.
-3. **Prompt** — Bedrock Converse with a forced JSON schema returning, per criterion, a
-   suggested rating, confidence, one-sentence rationale, and evidence quotes.
-4. **Verify** — locate every quote in the submission, whitespace-insensitively. Anything
-   not found is discarded and counted.
+## Safety invariants
 
-   ```python
-   pattern = re.compile(r"\s+".join(map(re.escape, quote.split())))
-   m = pattern.search(doc_text)   # None => hallucinated => drop
-   ```
+- AI output can suggest evidence or feedback but cannot author a score.
+- Suggested passages must resolve to normalized submission text before display.
+- Missing evidence never prevents manual grading.
+- Results leave B2TA only after TA review and an explicit export or publish action.
+- Sensitive student content, access tokens, and LMS credentials do not belong in normal
+  application logs.
+- Multi-user deployment requires authentication and per-session authorization before it
+  can be considered safe.
 
-5. **Map offsets** — convert absolute positions to `(paragraphIdx, offsetInParagraph)`,
-   the shape the UI renders. Offsets are always recomputed server-side; the model's own
-   character counts are ignored because language models cannot count reliably.
-6. **Cache** — write to DynamoDB keyed by attempt.
-
-The model returns quotes, never offsets. That single constraint is what makes the
-highlighting trustworthy.
-
-## Canvas integration
-
-| Purpose | Call |
-|---|---|
-| Assignment + rubric | `GET /api/v1/courses/{c}/assignments/{a}` |
-| Submissions | `GET /api/v1/courses/{c}/assignments/{a}/submissions?include[]=user&include[]=rubric_assessment` |
-| Attachment bytes | `GET` on `attachments[].url` — pre-authorized via `verifier`, no bearer token |
-| Write grade | `PUT /api/v1/courses/{c}/assignments/{a}/submissions/{user_id}` |
-
-Rubric criteria are keyed by Canvas's own string ids (`_1838`, `_7746`, …), preserved
-verbatim end to end. Posting internal slugs instead returns HTTP 200 and records
-nothing — a silent no-op.
-
-Canvas paginates with RFC 5988 `Link` headers rather than a body field, so the adapter
-follows `rel="next"` until absent.
-
-## Security
-
-- Canvas token in Secrets Manager; the frontend never calls Canvas directly.
-- Submission text and student names are not logged at INFO level.
-- No student work is committed to the repository.
-- The TA is the only writer of grades — see the human-in-the-loop commitment in the
-  [README](./README.md).
-
-## Design decisions
+## Decisions
 
 | Decision | Rationale |
 |---|---|
-| Bedrock over a direct API key | Keeps inference inside AWS; no third-party key to distribute or leak. |
-| Extract text rather than send PDFs to the model | Highlighting needs character offsets to anchor to, which a document-in/answer-out call cannot provide. |
-| Verify quotes server-side | An unverified quotation is a fabricated accusation about a student's writing. |
-| Cache by submission attempt | Repeat opens are instant and free; resubmissions still re-analyze. |
-| Fixture mode behind the same interface | The demo runs whether or not the Canvas instance is reachable. |
+| Standalone product with LMS adapters | B2TA owns a consistent grading workflow while supporting Canvas first and other LMSs later. |
+| One Express/TypeScript backend | A single process is the smallest architecture that supports frontend integration and rapid iteration. |
+| In-memory storage for the first slice | It establishes the HTTP contract before a durable data model is chosen. |
+| Canonical models plus external links | Provider payloads can evolve without leaking through the grading core. |
+| TA-authored scores only | AI assistance speeds evidence review without transferring grading authority. |
+| Review before export or publication | The TA has an explicit checkpoint before results leave B2TA. |
 
-Deliberately excluded: RDS/pgvector, Step Functions, Fargate, VPC networking — each adds
-setup cost without changing what the product does.
+See [ADR 0001](./docs/adr/0001-standalone-product-with-lms-adapters.md) for the product
+boundary decision.

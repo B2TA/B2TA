@@ -1,98 +1,134 @@
 # B2TA — Back to TA
 
-**AI-assisted rubric grading for Canvas LMS.** B2TA reads a student's submission,
-cross-references it against the assignment rubric, and shows the TA the exact passages
-that justify each criterion — so grading becomes verifying a judgment instead of
-reconstructing one from a blank page.
+**A standalone, AI-assisted grading workspace for teaching assistants.** B2TA reads a
+student submission, cross-references it against the assignment rubric, and shows the TA
+the exact passages relevant to each criterion—so grading becomes verifying evidence
+instead of reconstructing it from a blank page.
 
 Built for the UBC CIC Summer 2026 Hackathon (theme: *Student Success Tools*).
 
 **Live demo:** https://main.dpezcexvnbo0g.amplifyapp.com
 
----
+## Product boundary
+
+B2TA owns the grading experience. A TA creates or resumes a grading session, reviews a
+rubric beside each submission, confirms or rejects suggested evidence, selects scores,
+writes feedback, reviews the batch, and publishes or exports the completed results.
+
+Learning management systems connect through adapters:
+
+- **Canvas is the first supported LMS.** The Canvas adapter imports the rubric, roster,
+  and submissions and publishes TA-approved grades and feedback back to Canvas. The TA
+  stays in B2TA throughout the grading workflow.
+- **Manual import remains supported.** A TA can upload a rubric and submission batch and
+  export results without connecting an LMS.
+- **Other LMSs are a future extension.** The grading core uses B2TA's canonical models;
+  LMS-specific credentials, identifiers, and payloads stay inside each adapter.
+
+This is similar in product shape to Gradescope: B2TA is its own web application, while
+LMS connectivity removes the need to download submissions and re-enter grades manually.
+
+The boundary and vocabulary are recorded in [CONTEXT.md](./CONTEXT.md) and
+[ADR 0001](./docs/adr/0001-standalone-product-with-lms-adapters.md).
 
 ## The problem
 
-A TA marking 40 essays against a 5-criterion rubric re-reads the same document five
-times, once per criterion, hunting for the passage that settles each one. That work is
-mechanical, and it is where grading time actually goes.
-
-The cost lands on students. Feedback comes back slowly, and it comes back inconsistently —
-the essay marked at 9 AM and the one marked at 11 PM are not held to the same standard,
-and neither student can tell which passage of their own writing earned the score.
+A TA marking 40 essays against a five-criterion rubric repeatedly hunts through the same
+document for the passage that settles each criterion. That mechanical work slows feedback
+and makes consistent grading harder across a long batch.
 
 ## What B2TA does
 
-For each rubric criterion, B2TA proposes a rating and highlights the specific sentences
-in the submission that support it, colour-coded to match the rubric sidebar. The TA
-confirms, edits, or overrides — then syncs to the Canvas gradebook in one click.
+For each rubric criterion, B2TA proposes relevant passages and explains each match. The
+TA confirms, rejects, or adds evidence, then explicitly selects a performance level or
+enters a score. Before anything leaves B2TA, a review screen summarizes the full batch
+and flags incomplete or exceptional records.
 
-**Students get** faster turnaround, consistent standards across TAs, and feedback
-anchored to quoted evidence from their own work.
+Students receive faster feedback, more consistent application of the rubric, and comments
+anchored to evidence from their own work.
 
-### Two design commitments
+### Product commitments
 
-1. **The AI never grades.** It proposes; the TA disposes. No score reaches Canvas
-   without an explicit TA selection.
-2. **Every highlight is verified.** Quotes returned by the model are checked against the
-   submission text server-side, and any passage that does not appear verbatim is
-   discarded before it ever reaches the screen. The tool cannot show a TA a quotation the
-   student did not write.
-
----
+1. **The AI never grades.** It proposes evidence and feedback; the TA assigns every score.
+2. **Evidence must be traceable.** A suggested passage must resolve to text in the stored
+   submission before B2TA displays it.
+3. **Publication is deliberate.** No grade is exported or published to an LMS until the
+   TA completes review and explicitly initiates the action.
+4. **The grading core is LMS-neutral.** Canvas-specific concepts do not define B2TA's
+   internal grading model.
 
 ## Architecture
 
-React on Amplify → API Gateway → Lambda → Bedrock, with Canvas behind the backend so the
-API token never reaches the browser. Full detail and diagram in
-**[ARCHITECTURE.md](./ARCHITECTURE.md)**.
+The application has two runtime pieces: the React SPA and one Express/TypeScript backend
+process. The frontend calls `/api`; during local development Vite proxies those requests
+to the backend. All grading features, file processing, AI calls, and LMS adapters belong
+inside that backend monolith as ordinary modules.
 
-| | |
+The first backend slice uses an in-memory store so the frontend has a real HTTP contract
+without committing to production infrastructure too early. State resets whenever the
+backend restarts. Persistence, authentication, file storage, AI analysis, and Canvas
+connectivity are not implemented yet.
+
+| Layer | Technology |
 |---|---|
-| Frontend | React 19, Vite 8, Tailwind v4 — Amplify Hosting |
-| API | API Gateway (HTTP API) |
-| Compute | Lambda: `canvas-adapter`, `analyze`, `batch-worker` |
-| AI | Amazon Bedrock — Claude Sonnet 4.5 |
-| Data | DynamoDB (analysis cache, TA overrides), S3 (artifacts), SQS, Secrets Manager |
-| LMS | Canvas LMS REST API |
+| Frontend | React 19, Vite 8, Tailwind CSS v4 — Amplify Hosting |
+| Backend | Express 5 and TypeScript — one monolithic process |
+| Current state | In-memory store for sessions, rubrics, and submission lists |
+| Planned modules | Persistence, authentication, file ingestion, AI assistance, and LMS adapters |
+| LMS integration | Provider-neutral adapter boundary; Canvas first |
 
----
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for the system and integration boundaries.
 
-## Status
+## Current state
 
-| Component | State |
+| Area | State |
 |---|---|
-| Grading UI | ✅ Built, deployed to Amplify |
-| Canvas connection | ✅ Verified against live instance |
-| Rubric seeded in Canvas | ✅ 5 criteria, 20 pts (`scripts/seed_canvas.py`) |
-| PDF/DOCX text extraction | ✅ Verified with `pypdf` |
-| Bedrock access | ✅ Claude Sonnet 4.5 confirmed |
-| `analyze` Lambda | 🚧 In progress |
-| Canvas grade write-back | 🚧 In progress |
-| UI wired to live data | 🚧 Currently renders from fixtures in `src/App.tsx` |
+| High-fidelity marking prototype | Built in `src/App.tsx` with fixture data |
+| Production SPA shell | Routes and client state scaffolded under `src/app/` |
+| Backend monolith | Express API scaffold with health, session, rubric, and submission-list endpoints |
+| Backend persistence and authentication | Not implemented; current state is local and in memory |
+| Canvas API feasibility | Verified against the hackathon Canvas instance |
+| Canvas adapter | Architectural boundary defined; implementation remains in progress |
+| End-to-end production workflow | In progress |
 
----
+The prototype is still the active frontend entrypoint. The production route shell is not
+yet mounted by `src/main.tsx`.
 
 ## Running locally
 
-Requires [mise](https://mise.jdx.dev/) — the toolchain is pinned (Node 22, pnpm 10.34.3).
+The Vite development server is normally already running in Figma Make. For a fresh local
+checkout, use the toolchain pinned by mise:
 
 ```bash
 mise trust && mise install
 mise exec -- pnpm install
-mise exec -- pnpm dev          # http://localhost:8443
+mise exec -- pnpm dev
 ```
 
-Plain `pnpm` will use your global Node and may rewrite the lockfile — prefer
+Plain `pnpm` may use a different global Node version and rewrite the lockfile, so prefer
 `mise exec -- pnpm`.
 
-### Deploying
+Run the backend in a second terminal:
 
 ```bash
-./scripts/deploy.sh            # build, upload to Amplify, poll to completion
+pnpm --dir backend install
+pnpm run dev:api
 ```
 
-### Seeding Canvas
+The SPA runs on port `8443` by default, the API runs on port `3001`, and Vite proxies
+`/api` to the API process. Use `pnpm run build:api` and `pnpm run test:api` to validate
+the backend.
+
+### Deploying the frontend
+
+```bash
+./scripts/deploy.sh
+```
+
+### Preparing the hackathon Canvas instance
+
+`scripts/seed_canvas.py` creates the demo rubric used to exercise the Canvas adapter. It
+is development tooling, not part of B2TA's product boundary.
 
 ```bash
 export CANVAS_URL=https://canvas.cic.wtarit.me
@@ -101,27 +137,27 @@ python3 scripts/seed_canvas.py --dry-run
 python3 scripts/seed_canvas.py --course 1 --assignment 1
 ```
 
----
-
 ## Repository layout
 
+```text
+src/App.tsx                                  High-fidelity marking prototype
+src/app/                                     Production standalone SPA shell
+backend/                                     Express/TypeScript monolith
+fixtures/                                    Generated development fixtures
+scripts/seed_canvas.py                       Canvas adapter development helper
+CONTEXT.md                                   Product language and boundaries
+docs/adr/                                    Architectural decisions
+ARCHITECTURE.md                              System architecture
 ```
-src/App.tsx                        Grading UI (SpeedGrader overlay)
-scripts/deploy.sh                  Build + deploy to Amplify
-scripts/seed_canvas.py             Create the essay rubric in Canvas
-fixtures/                          Canvas API responses for offline demo
-.kiro/specs/canvas-integration/    Spec-driven plan: requirements, design, tasks
-ARCHITECTURE.md                    System design and diagram
-```
-
-Built spec-first with [Kiro](https://kiro.dev/): requirements → design → tasks live in
-`.kiro/specs/` and were written before the integration code.
 
 ## Security notes
 
-- The Canvas API token lives in AWS Secrets Manager and is never exposed to the browser.
-- Student submissions are not committed to this repository. `fixtures/` contains only
-  generated rubric structure — no personally identifiable information.
+- Authentication and durable storage are not implemented in the current backend slice.
+- LMS credentials must remain backend-only and never be exposed to the browser.
+- Student submissions, names, feedback, and access tokens must not be logged at INFO.
+- Student work must not be committed. Fixtures contain generated structures without PII.
+- Before multi-user deployment, every API operation must enforce ownership of its grading
+  session and associated files.
 
 ## License
 

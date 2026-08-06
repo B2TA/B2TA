@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
+    "dev:api": "pnpm --dir backend dev",
     "build": "vite build",
+    "build:api": "pnpm --dir backend build",
+    "test:api": "pnpm --dir backend test",
     "preview": "vite preview",
     "format": "oxfmt"
   },
