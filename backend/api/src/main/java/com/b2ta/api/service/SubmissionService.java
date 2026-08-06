@@ -1,143 +1,136 @@
 package com.b2ta.api.service;
 
-import com.b2ta.api.repository.GradingSessionRepository;
-import com.b2ta.api.repository.SubmissionRepository;
-import com.b2ta.api.security.SecurityContextHelper;
+import com.b2ta.api.security.TaPrincipal;
+import com.b2ta.api.security.TenantGuard;
 import com.b2ta.common.dto.submission.SubmissionResponse;
+import com.b2ta.common.dto.submission.SubmissionUploadUrlsRequest;
+import com.b2ta.common.dto.submission.SubmissionUploadUrlsResponse;
 import com.b2ta.common.dto.submission.UpdateIdentityRequest;
-import com.b2ta.common.entity.GradingSession;
 import com.b2ta.common.entity.Submission;
 import com.b2ta.common.entity.enums.IdentityStatus;
-import jakarta.persistence.EntityNotFoundException;
+import com.b2ta.common.error.ApiException;
+import com.b2ta.common.error.ErrorCode;
+import com.b2ta.common.repository.SubmissionRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Submission listing, identity correction, and TA-scoped upload URLs.
+ *
+ * <p>The ingestion pipeline itself is Team A's task 3.4-3.6. What is here is the part tasks 5.x need:
+ * the read path that the marking view and review screen navigate, the identity correction that clears
+ * an unverified flag, and pre-signed upload URLs that are scoped to the requesting TA's prefix
+ * (Requirement 18.6).
+ */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SubmissionService {
 
-    private static final int BATCH_LIMIT = 150;
+    /** Batch ceiling (Requirement 19.1, 19.2). */
+    public static final int MAX_BATCH_SIZE = 150;
 
+    private final TenantGuard tenantGuard;
     private final SubmissionRepository submissionRepository;
-    private final GradingSessionRepository sessionRepository;
-    private final SecurityContextHelper securityContextHelper;
+    private final S3StorageService storage;
+    private final S3KeyBuilder keyBuilder;
+    private final com.b2ta.common.config.AwsProperties awsProperties;
 
-    /**
-     * Lists all submissions for a session ordered by position.
-     * Enforces tenant isolation by verifying session ownership.
-     */
     @Transactional(readOnly = true)
-    public List<SubmissionResponse> listSubmissions(UUID sessionId) {
-        GradingSession session = resolveSession(sessionId);
-        List<Submission> submissions = submissionRepository.findAllBySessionIdOrderByPositionAsc(session.getId());
-        return submissions.stream().map(this::toResponse).toList();
+    public List<SubmissionResponse> list(TaPrincipal ta, UUID sessionId) {
+        tenantGuard.requireSession(ta, sessionId);
+        return submissionRepository.findBySessionIdOrderByPosition(sessionId).stream()
+                .map(this::toResponse)
+                .toList();
     }
 
-    /**
-     * Updates the student display name on a submission.
-     * Validates the name (1-200 chars, non-blank), marks as VERIFIED,
-     * then re-evaluates case-insensitive duplicates across all submissions in the batch.
-     */
+    /** Corrects a resolved student name and marks the identity verified (Requirement 5.7). */
     @Transactional
-    public SubmissionResponse updateIdentity(UUID sessionId, UUID submissionId, UpdateIdentityRequest request) {
-        GradingSession session = resolveSession(sessionId);
+    public SubmissionResponse updateIdentity(TaPrincipal ta, UUID sessionId, UUID submissionId,
+                                             UpdateIdentityRequest request) {
+        Submission submission = tenantGuard.requireSubmission(ta, sessionId, submissionId);
 
-        Submission submission = submissionRepository.findByIdAndSessionId(submissionId, session.getId())
-                .orElseThrow(() -> new EntityNotFoundException("Submission not found"));
-
-        String newName = request.getStudentDisplayName().trim();
-        submission.setStudentDisplayName(newName);
+        String name = normalizeDisplayName(request.getStudentDisplayName());
+        if (name.isEmpty()) {
+            throw ApiException.badRequest(ErrorCode.VALIDATION_FAILED,
+                    "A student display name of 1 to 200 characters is required");
+        }
+        submission.setStudentDisplayName(name);
+        // The TA has now stated who this is, which is exactly what "verified" means here.
         submission.setIdentityStatus(IdentityStatus.VERIFIED);
-
-        submissionRepository.save(submission);
-
-        // Re-evaluate duplicate detection across all submissions in the batch
-        reevaluateDuplicates(session.getId());
-
-        // Return the updated submission
-        Submission refreshed = submissionRepository.findByIdAndSessionId(submissionId, session.getId())
-                .orElseThrow(() -> new EntityNotFoundException("Submission not found"));
-        return toResponse(refreshed);
+        return toResponse(submissionRepository.save(submission));
     }
 
-    /**
-     * Confirms all student identities in the batch. Sets all submissions' identity
-     * status to VERIFIED (acknowledging their current display names).
-     */
+    /** Marks every submission's identity as confirmed by the TA (Requirement 5.8). */
     @Transactional
-    public void confirmIdentities(UUID sessionId) {
-        GradingSession session = resolveSession(sessionId);
-        List<Submission> submissions = submissionRepository.findAllBySessionIdOrderByPositionAsc(session.getId());
-
+    public List<SubmissionResponse> confirmIdentities(TaPrincipal ta, UUID sessionId) {
+        tenantGuard.requireSession(ta, sessionId);
+        List<Submission> submissions = submissionRepository
+                .findBySessionIdOrderByPosition(sessionId);
         for (Submission submission : submissions) {
             if (submission.getIdentityStatus() != IdentityStatus.VERIFIED) {
                 submission.setIdentityStatus(IdentityStatus.VERIFIED);
             }
         }
-
         submissionRepository.saveAll(submissions);
+        return submissions.stream().map(this::toResponse).toList();
     }
 
     /**
-     * Validates that adding more submissions would not exceed the batch limit.
-     * Throws IllegalStateException if the limit would be exceeded.
+     * Issues pre-signed upload URLs, one per file.
+     *
+     * <p>Keys are built from the authenticated principal, never from the request, so a URL cannot be
+     * obtained for another TA's prefix no matter what filename is submitted (Requirement 18.6).
      */
-    public void validateBatchLimit(UUID sessionId, int additionalCount) {
-        long currentCount = submissionRepository.countBySessionId(sessionId);
-        if (currentCount + additionalCount > BATCH_LIMIT) {
-            throw new IllegalStateException(
-                    String.format("Batch limit exceeded: current %d + requested %d exceeds maximum of %d submissions",
-                            currentCount, additionalCount, BATCH_LIMIT));
+    @Transactional(readOnly = true)
+    public SubmissionUploadUrlsResponse createUploadUrls(TaPrincipal ta, UUID sessionId,
+                                                         SubmissionUploadUrlsRequest request) {
+        tenantGuard.requireSession(ta, sessionId);
+        requireStorage();
+
+        int existing = submissionRepository.countBySessionId(sessionId);
+        int requested = request.getFiles().size();
+        if (existing + requested > MAX_BATCH_SIZE) {
+            throw ApiException.badRequest(ErrorCode.BATCH_LIMIT_EXCEEDED,
+                            "A batch holds at most " + MAX_BATCH_SIZE + " submissions; this session "
+                                    + "already has " + existing)
+                    .with("existing", existing)
+                    .with("requested", requested)
+                    .with("limit", MAX_BATCH_SIZE);
+        }
+
+        List<SubmissionUploadUrlsResponse.FileUploadUrl> urls = new ArrayList<>(requested);
+        for (SubmissionUploadUrlsRequest.FileUploadEntry file : request.getFiles()) {
+            String key = keyBuilder.submissionUpload(ta, sessionId, file.getFilename());
+            urls.add(SubmissionUploadUrlsResponse.FileUploadUrl.builder()
+                    .filename(file.getFilename())
+                    .objectKey(key)
+                    .uploadUrl(storage.presignedUploadUrl(key, "application/octet-stream"))
+                    .build());
+        }
+        return SubmissionUploadUrlsResponse.builder().urls(urls).build();
+    }
+
+    private void requireStorage() {
+        if (!awsProperties.isS3Configured()) {
+            throw ApiException.unprocessable(ErrorCode.EXPORT_FAILED,
+                    "File storage is not configured on this deployment, so uploads are unavailable");
         }
     }
 
-    /**
-     * Re-evaluates case-insensitive duplicate detection across all submissions in a session.
-     * Submissions with names that match another submission (case-insensitive) are marked
-     * DISAMBIGUATION_REQUIRED. Submissions with unique names that were previously flagged
-     * have their disambiguation flag cleared back to VERIFIED.
-     */
-    private void reevaluateDuplicates(UUID sessionId) {
-        List<Submission> submissions = submissionRepository.findAllBySessionIdOrderByPositionAsc(sessionId);
-
-        // Count occurrences of each name (case-insensitive)
-        java.util.Map<String, Long> nameCounts = submissions.stream()
-                .filter(s -> s.getStudentDisplayName() != null)
-                .collect(java.util.stream.Collectors.groupingBy(
-                        s -> s.getStudentDisplayName().toLowerCase(),
-                        java.util.stream.Collectors.counting()));
-
-        for (Submission submission : submissions) {
-            if (submission.getStudentDisplayName() == null) {
-                continue;
-            }
-
-            String nameLower = submission.getStudentDisplayName().toLowerCase();
-            long count = nameCounts.getOrDefault(nameLower, 0L);
-
-            if (count > 1) {
-                submission.setIdentityStatus(IdentityStatus.DISAMBIGUATION_REQUIRED);
-            } else if (submission.getIdentityStatus() == IdentityStatus.DISAMBIGUATION_REQUIRED) {
-                // No longer duplicated — clear the flag
-                submission.setIdentityStatus(IdentityStatus.VERIFIED);
-            }
+    /** Collapses whitespace and trims, per the roster resolver's normalisation rules. */
+    private String normalizeDisplayName(String raw) {
+        if (raw == null) {
+            return "";
         }
-
-        submissionRepository.saveAll(submissions);
-    }
-
-    /**
-     * Resolves a session by ID, enforcing tenant isolation.
-     * Returns 404 if session does not exist or does not belong to the current TA.
-     */
-    private GradingSession resolveSession(UUID sessionId) {
-        UUID taId = securityContextHelper.getCurrentTaId();
-        return sessionRepository.findByIdAndTaId(sessionId, taId)
-                .orElseThrow(() -> new EntityNotFoundException("Session not found"));
+        String collapsed = raw.replaceAll("\\s+", " ").trim();
+        return collapsed.length() > 200 ? collapsed.substring(0, 200) : collapsed;
     }
 
     private SubmissionResponse toResponse(Submission submission) {

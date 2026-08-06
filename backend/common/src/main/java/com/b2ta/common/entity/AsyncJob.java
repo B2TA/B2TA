@@ -1,5 +1,6 @@
 package com.b2ta.common.entity;
 
+import com.b2ta.common.entity.converter.PersistableEnumConverters;
 import com.b2ta.common.entity.enums.JobStatus;
 import com.b2ta.common.entity.enums.JobType;
 import jakarta.persistence.*;
@@ -25,12 +26,12 @@ public class AsyncJob {
     @JoinColumn(name = "session_id", nullable = false)
     private GradingSession session;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "job_type", nullable = false)
+    @Convert(converter = PersistableEnumConverters.JobTypeConverter.class)
+    @Column(name = "job_type", nullable = false, length = 30)
     private JobType jobType;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
+    @Convert(converter = PersistableEnumConverters.JobStatusConverter.class)
+    @Column(name = "status", nullable = false, length = 20)
     private JobStatus status;
 
     @Column(name = "progress_current")

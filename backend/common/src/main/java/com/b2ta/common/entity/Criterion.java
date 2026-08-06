@@ -38,8 +38,8 @@ public class Criterion {
     @Column(name = "display_color", nullable = false, length = 7)
     private String displayColor;
 
-    @Column(name = "position", nullable = false)
-    private Integer position;
+    @Column(name = "position", nullable = false, columnDefinition = "SMALLINT")
+    private Short position;
 
     @Column(name = "requires_completion", nullable = false)
     private Boolean requiresCompletion;

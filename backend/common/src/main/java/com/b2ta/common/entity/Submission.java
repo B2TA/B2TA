@@ -1,5 +1,6 @@
 package com.b2ta.common.entity;
 
+import com.b2ta.common.entity.converter.PersistableEnumConverters;
 import com.b2ta.common.entity.enums.ExtractionStatus;
 import com.b2ta.common.entity.enums.IdentityStatus;
 import jakarta.persistence.*;
@@ -37,12 +38,12 @@ public class Submission {
     @Column(name = "canvas_submission_id")
     private String canvasSubmissionId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "identity_status", nullable = false)
+    @Convert(converter = PersistableEnumConverters.IdentityStatusConverter.class)
+    @Column(name = "identity_status", nullable = false, length = 20)
     private IdentityStatus identityStatus;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "extraction_status", nullable = false)
+    @Convert(converter = PersistableEnumConverters.ExtractionStatusConverter.class)
+    @Column(name = "extraction_status", nullable = false, length = 20)
     private ExtractionStatus extractionStatus;
 
     @Column(name = "extraction_failure_reason")

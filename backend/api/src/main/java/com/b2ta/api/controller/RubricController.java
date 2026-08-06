@@ -1,85 +1,50 @@
 package com.b2ta.api.controller;
 
-import com.b2ta.api.repository.GradingSessionRepository;
-import com.b2ta.api.security.SecurityContextHelper;
-import com.b2ta.api.service.JobService;
-import com.b2ta.api.service.RubricExportService;
+import com.b2ta.api.security.CurrentTa;
+import com.b2ta.api.security.TaPrincipal;
 import com.b2ta.api.service.RubricService;
-import com.b2ta.common.dto.export.ExportResponse;
-import com.b2ta.common.dto.job.JobCreatedResponse;
+import com.b2ta.common.dto.rubric.RubricExportResponse;
 import com.b2ta.common.dto.rubric.RubricResponse;
 import com.b2ta.common.dto.rubric.SaveRubricRequest;
-import com.b2ta.common.entity.GradingSession;
-import com.b2ta.common.entity.enums.JobType;
-import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
 import java.util.UUID;
 
+/** Rubric read and write for one session. */
 @RestController
 @RequestMapping("/api/sessions/{sessionId}/rubric")
 @RequiredArgsConstructor
 public class RubricController {
 
     private final RubricService rubricService;
-    private final RubricExportService rubricExportService;
-    private final JobService jobService;
-    private final GradingSessionRepository sessionRepository;
-    private final SecurityContextHelper securityContextHelper;
 
     /**
-     * GET /api/sessions/{sessionId}/rubric
-     * Load the rubric with all criteria and performance levels.
+     * Returns the rubric, or 204 when the session has none yet.
+     *
+     * <p>204 rather than 404: the session exists and the client is asking a legitimate question during
+     * setup, so an empty success is more accurate than "not found" and does not have to be handled as
+     * an error case in the SPA.
      */
     @GetMapping
-    public ResponseEntity<RubricResponse> getRubric(@PathVariable UUID sessionId) {
-        RubricResponse response = rubricService.getRubric(sessionId);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<RubricResponse> get(@CurrentTa TaPrincipal ta,
+                                              @PathVariable UUID sessionId) {
+        return rubricService.find(ta, sessionId)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
-    /**
-     * PUT /api/sessions/{sessionId}/rubric
-     * Save/replace the rubric (full replacement with validation).
-     */
     @PutMapping
-    public ResponseEntity<RubricResponse> saveRubric(
-            @PathVariable UUID sessionId,
-            @Valid @RequestBody SaveRubricRequest request) {
-        RubricResponse response = rubricService.saveRubric(sessionId, request);
-        return ResponseEntity.ok(response);
+    public RubricResponse save(@CurrentTa TaPrincipal ta,
+                               @PathVariable UUID sessionId,
+                               @Valid @RequestBody SaveRubricRequest request) {
+        return rubricService.save(ta, sessionId, request);
     }
 
-    /**
-     * POST /api/sessions/{sessionId}/rubric/parse
-     * Trigger rubric parse job. Returns a job ID for polling.
-     */
-    @PostMapping("/parse")
-    public ResponseEntity<JobCreatedResponse> triggerParse(@PathVariable UUID sessionId) {
-        UUID taId = securityContextHelper.getCurrentTaId();
-        GradingSession session = sessionRepository.findByIdAndTaId(sessionId, taId)
-                .orElseThrow(() -> new EntityNotFoundException("Session not found"));
-
-        JobCreatedResponse response = jobService.createAndPublishJob(
-                session,
-                JobType.RUBRIC_PARSE,
-                Map.of("sessionId", sessionId.toString())
-        );
-
-        return ResponseEntity.accepted().body(response);
-    }
-
-    /**
-     * POST /api/sessions/{sessionId}/rubric/export
-     * Serialize the rubric to CSV, upload to S3, and return a pre-signed download URL.
-     * Returns 400 if the rubric has zero criteria.
-     */
     @PostMapping("/export")
-    public ResponseEntity<ExportResponse> exportRubric(@PathVariable UUID sessionId) {
-        ExportResponse response = rubricExportService.exportRubric(sessionId);
-        return ResponseEntity.ok(response);
+    public RubricExportResponse export(@CurrentTa TaPrincipal ta, @PathVariable UUID sessionId) {
+        return rubricService.exportCsv(ta, sessionId);
     }
 }

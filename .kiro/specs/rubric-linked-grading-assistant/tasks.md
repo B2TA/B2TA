@@ -131,8 +131,8 @@ Backend work is split into two parallel tracks:
 - [~] 4. Checkpoint - Core data layer and ingestion pipeline complete
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. Backend Team B — Authentication and AI Integration
-  - [~] 5.1 Implement `AuthFilter` with Cognito JWT validation
+- [x] 5. Backend Team B — Authentication and AI Integration
+  - [x] 5.1 Implement `AuthFilter` with Cognito JWT validation
     - Validate JWT signature via Cognito JWKS endpoint
     - Check `exp`, `iss`, `token_use=access`
     - Extract `sub` claim, resolve to `TaUser` entity
@@ -140,19 +140,19 @@ Backend work is split into two parallel tracks:
     - Return 401 for absent/expired/invalid tokens
     - _Requirements: 18.1, 18.3, 18.4_
 
-  - [~] 5.2 Implement tenant isolation enforcement across all repositories
+  - [x] 5.2 Implement tenant isolation enforcement across all repositories
     - Every query includes `ta_id` filter
     - Return 404 (not 403) for cross-tenant access attempts
     - Scope pre-signed URLs to TA's S3 prefix
     - _Requirements: 18.5, 18.6, 18.7_
 
-  - [~] 5.3 Implement `SensitiveDataFilter` for structured logging
+  - [x] 5.3 Implement `SensitiveDataFilter` for structured logging
     - Strip access tokens, student display names, feedback text from all log records
     - Only IDs (session_id, submission_id, criterion_id) appear in logs
     - Configure Logback + logstash-encoder for JSON logging
     - _Requirements: 18.11_
 
-  - [~] 5.4 Implement `MatchEngineHandler` in Worker service
+  - [x] 5.4 Implement `MatchEngineHandler` in Worker service
     - Chunk submissions at 4000-char boundaries (prefer sentence breaks within 200-char window)
     - Add 400-char overlap between consecutive chunks
     - Call Bedrock Claude Sonnet 4 with structured output schema enforcement
@@ -161,7 +161,7 @@ Backend work is split into two parallel tracks:
     - Validate all offsets within submission bounds, passage length 20-1500 chars
     - _Requirements: 6.1, 6.2, 6.3, 6.5, 6.9, 6.10_
 
-  - [~] 5.5 Implement match deduplication and persistence
+  - [x] 5.5 Implement match deduplication and persistence
     - Discard matches overlapping ≥50% of shorter range with a retained match
     - Persist suggested matches in DB (reuse on reopen, no re-analysis)
     - Mark criterion+submission as analysis-unavailable after 4 failed Bedrock calls
@@ -169,13 +169,13 @@ Backend work is split into two parallel tracks:
     - Semaphore: max 5 concurrent Bedrock invocations per worker
     - _Requirements: 6.4, 6.7, 6.8, 6.11_
 
-  - [ ]* 5.6 Write property tests for Match_Engine components
+  - [x]* 5.6 Write property tests for Match_Engine components
     - **Property 5: Match Output Field Invariant**
     - **Property 6: Match Overlap Deduplication**
     - **Property 7: Chunk Offset Remapping Correctness**
     - **Validates: Requirements 6.2, 6.3, 6.4, 6.5**
 
-  - [~] 5.7 Implement `GradingController` — save/load grading records
+  - [x] 5.7 Implement `GradingController` — save/load grading records
     - GET `/api/sessions/{id}/submissions/{subId}/grading` — load record + matches
     - PUT `/api/sessions/{id}/submissions/{subId}/grading` — atomic save (transaction: upsert grading_record + criterion_scores + confirmed_matches)
     - Validate point values within bounds, override ≤ max_points
@@ -183,26 +183,27 @@ Backend work is split into two parallel tracks:
     - POST `/api/sessions/{id}/submissions/{subId}/reanalyze/{criterionId}` — re-run analysis, mark old matches as stale
     - _Requirements: 14.1-6, 14.10-12, 10.1-9, 6.14_
 
-  - [ ]* 5.8 Write property tests for ScoreCalculator and GradingRecord persistence
-    - **Property 8: Score Total Arithmetic**
-    - **Property 9: Grading Record Persistence Round-Trip**
+  - [x]* 5.8 Write property tests for ScoreCalculator and GradingRecord persistence
+    - **Property 8: Score Total Arithmetic** — covered by `ScoreCalculatorPropertyTest`
+    - **Property 9: Grading Record Persistence Round-Trip** — NOT covered: needs a live PostgreSQL
+      via Testcontainers, which requires a Docker daemon. Add when one is available.
     - **Validates: Requirements 11.3, 11.9, 14.10**
 
-  - [~] 5.9 Implement `CommentController` — AI comment suggestions
+  - [x] 5.9 Implement `CommentController` — AI comment suggestions
     - POST `/api/sessions/{id}/submissions/{subId}/comments/suggest`
     - Call Bedrock Claude Haiku 4.5 with selected levels + confirmed matches
     - Return 1-5 feedback snippets (1-1000 chars each)
     - 15-second timeout, block if zero performance levels selected
     - _Requirements: 12.3, 12.6, 12.7, 12.8_
 
-  - [~] 5.10 Implement `ReviewController` — review screen data
+  - [x] 5.10 Implement `ReviewController` — review screen data
     - GET `/api/sessions/{id}/review` — all submissions with per-criterion scores, totals, flags
     - POST `/api/sessions/{id}/review/confirm` — record confirmation timestamp
     - Clear confirmation when any grading record changes post-confirmation
     - Block export without review confirmation
     - _Requirements: 15.1-12_
 
-  - [~] 5.11 Implement `ExportController` and `ExportService`
+  - [x] 5.11 Implement `ExportController` and `ExportService`
     - POST `/api/sessions/{id}/export/generic` — CSV with student name, per-criterion points, level labels, total, max, feedback
     - POST `/api/sessions/{id}/export/canvas` — Canvas gradebook format
     - RFC 4180 encoding (UTF-8, CRLF line endings, proper quoting)
@@ -211,7 +212,7 @@ Backend work is split into two parallel tracks:
     - 30-second timeout for 150-submission batch
     - _Requirements: 16.1-11_
 
-  - [ ]* 5.12 Write property tests for ExportService
+  - [x]* 5.12 Write property tests for ExportService
     - **Property 10: Export CSV Round-Trip**
     - **Validates: Requirements 16.6, 16.7**
 

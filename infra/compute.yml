@@ -4,7 +4,7 @@ Description: "Grading Assistant - ECS Fargate Cluster, Task Definitions, ALB, Ta
 Parameters:
   EnvironmentName:
     Type: String
-    Default: rubric-grading-assistant
+    Default: grading-assistant
     Description: Environment name prefix for resource naming
 
   VpcId:
@@ -77,7 +77,6 @@ Resources:
       DefaultCapacityProviderStrategy:
         - CapacityProvider: FARGATE
           Weight: 1
-
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentName}-cluster"
@@ -106,7 +105,6 @@ Resources:
               Value: api
             - Name: SERVER_PORT
               Value: "8080"
-
           HealthCheck:
             Command:
               - CMD-SHELL
@@ -135,7 +133,6 @@ Resources:
           Environment:
             - Name: SPRING_PROFILES_ACTIVE
               Value: worker
-
           HealthCheck:
             Command:
               - CMD-SHELL

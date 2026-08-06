@@ -38,6 +38,12 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
+        <!-- OAuth2 resource server: supplies NimbusJwtDecoder, which handles Cognito JWKS
+             retrieval, key rotation, caching, and RS256 signature verification. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
 
         <!-- Spring Actuator -->
         <dependency>

@@ -1,5 +1,7 @@
 package com.b2ta.api.controller;
 
+import com.b2ta.api.security.CurrentTa;
+import com.b2ta.api.security.TaPrincipal;
 import com.b2ta.api.service.SessionService;
 import com.b2ta.common.dto.session.CreateSessionRequest;
 import com.b2ta.common.dto.session.SessionResponse;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+/** Grading session CRUD. */
 @RestController
 @RequestMapping("/api/sessions")
 @RequiredArgsConstructor
@@ -20,26 +23,26 @@ public class SessionController {
     private final SessionService sessionService;
 
     @PostMapping
-    public ResponseEntity<SessionResponse> createSession(@Valid @RequestBody CreateSessionRequest request) {
-        SessionResponse response = sessionService.createSession(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    @ResponseStatus(HttpStatus.CREATED)
+    public SessionResponse create(@CurrentTa TaPrincipal ta,
+                                  @Valid @RequestBody CreateSessionRequest request) {
+        return sessionService.create(ta, request);
     }
 
+    /** Lists the requesting TA's sessions only (Requirement 14.9). */
     @GetMapping
-    public ResponseEntity<List<SessionResponse>> listSessions() {
-        List<SessionResponse> sessions = sessionService.listSessions();
-        return ResponseEntity.ok(sessions);
+    public List<SessionResponse> list(@CurrentTa TaPrincipal ta) {
+        return sessionService.list(ta);
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<SessionResponse> getSession(@PathVariable UUID id) {
-        SessionResponse response = sessionService.getSession(id);
-        return ResponseEntity.ok(response);
+    @GetMapping("/{sessionId}")
+    public SessionResponse get(@CurrentTa TaPrincipal ta, @PathVariable UUID sessionId) {
+        return sessionService.get(ta, sessionId);
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteSession(@PathVariable UUID id) {
-        sessionService.deleteSession(id);
+    @DeleteMapping("/{sessionId}")
+    public ResponseEntity<Void> delete(@CurrentTa TaPrincipal ta, @PathVariable UUID sessionId) {
+        sessionService.delete(ta, sessionId);
         return ResponseEntity.noContent().build();
     }
 }

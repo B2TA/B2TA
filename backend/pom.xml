@@ -36,6 +36,7 @@
         <jqwik.version>1.9.2</jqwik.version>
         <testcontainers.version>1.20.4</testcontainers.version>
         <lombok.version>1.18.34</lombok.version>
+        <logstash-encoder.version>8.0</logstash-encoder.version>
     </properties>
 
     <dependencyManagement>
@@ -77,6 +78,12 @@
                 <version>${flyway.version}</version>
             </dependency>
 
+            <!-- Structured JSON logging (Requirement 18.11) -->
+            <dependency>
+                <groupId>net.logstash.logback</groupId>
+                <artifactId>logstash-logback-encoder</artifactId>
+                <version>${logstash-encoder.version}</version>
+            </dependency>
             <!-- jqwik for property-based testing -->
             <dependency>
                 <groupId>net.jqwik</groupId>

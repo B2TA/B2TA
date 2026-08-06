@@ -29,3 +29,7 @@ Thumbs.db
 
 # Environment
 .env
+
+# jqwik records failing property-test seeds here so a failure replays first on the next run.
+# Useful locally, meaningless in version control.
+.jqwik-database

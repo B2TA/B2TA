@@ -1,13 +1,36 @@
-import { useParams } from "react-router";
+import { useState } from "react";
+import { useParams, useSearchParams } from "react-router";
+import AppShell from "../components/AppShell";
+import { MarkingView } from "../components/marking";
+import { useSubmissions } from "../api/queries";
 
+/**
+ * Marking route page (updated per Task 8.x).
+ *
+ * Extracts sessionId from URL params, tracks current submissionId in state,
+ * and delegates all rendering to the MarkingView component.
+ */
 export default function MarkingPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id: sessionId = "" } = useParams<{ id: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const submissions = useSubmissions(sessionId);
+
+  // The submission in the URL, defaulting to the first in batch order
+  const submissionId = searchParams.get("submission") ?? submissions.data?.[0]?.id ?? "";
+
+  const handleSubmissionChange = (newId: string) => {
+    setSearchParams({ submission: newId });
+  };
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold">Marking View</h1>
-      <p className="text-sm text-gray-500">Session: {id}</p>
-      {/* TODO: RubricPanel, DocumentViewer, FeedbackEditor, BatchNavigator */}
-    </div>
+    <AppShell title="Marking">
+      <div className="h-[calc(100vh-64px)]">
+        <MarkingView
+          sessionId={sessionId}
+          submissionId={submissionId}
+          onSubmissionChange={handleSubmissionChange}
+        />
+      </div>
+    </AppShell>
   );
 }

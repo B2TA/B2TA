@@ -25,9 +25,9 @@ Standalone web app for TA grading with AI-powered rubric-to-passage matching.
 
 - PostgreSQL over DynamoDB — relational joins for the review screen, ACID transactions for atomic saves.
 - Two ECS services from one codebase — keeps 60s Bedrock calls from blocking 200ms saves.
-- Pre-signed S3 URLs — files go browser→S3 directly, never through the backend.
+- Pre-signed S3 URLs — files go browser to S3 directly, never through the backend.
 - Credentials stored as environment variables (prototype; no Secrets Manager).
-- No CloudWatch log groups (stdout logging only for prototype).
+- Stdout logging only (no CloudWatch log groups for prototype).
 
 ## Security
 

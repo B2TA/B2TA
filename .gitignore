@@ -16,3 +16,4 @@ logs/
 canvas.env
 *.token
 fixtures/raw/
+backend/env
