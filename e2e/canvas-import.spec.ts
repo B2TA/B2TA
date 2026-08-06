@@ -17,16 +17,13 @@ test("TA imports a Canvas rubric, roster, and PDF submission batch", async ({
 
   await page.getByLabel("Course").selectOption("42")
   await page.getByLabel("Assignment").selectOption("99")
-  await page.getByRole("button", { name: "Import rubric" }).click()
+  await page.getByRole("button", { name: "Import assignment" }).click()
 
   await expect(
     page.getByRole("heading", { name: "Thesis clarity" }),
   ).toBeVisible()
   await expect(page.getByText(/^Strong/)).toBeVisible()
 
-  await page
-    .getByRole("button", { name: "Import roster and submissions" })
-    .click()
   await expect(page.getByText("1 ready")).toBeVisible()
   await expect(page.getByText("1 missing")).toBeVisible()
   await expect(page.getByText("Alex Able")).toBeVisible()

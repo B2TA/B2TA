@@ -231,7 +231,7 @@ beforeEach(() => {
   )
 })
 
-test("TA connects Canvas and imports the assignment rubric", async () => {
+test("TA imports the Canvas rubric and submissions in one assignment flow", async () => {
   const user = userEvent.setup()
   render(<App />)
 
@@ -250,7 +250,7 @@ test("TA connects Canvas and imports the assignment rubric", async () => {
   expect(await screen.findByText("Connected as Ada TA")).toBeVisible()
   await user.selectOptions(screen.getByLabelText("Course"), "42")
   await user.selectOptions(await screen.findByLabelText("Assignment"), "99")
-  await user.click(screen.getByRole("button", { name: "Import rubric" }))
+  await user.click(screen.getByRole("button", { name: "Import assignment" }))
 
   expect(
     await screen.findByRole("heading", { name: "Thesis clarity" }),
@@ -258,9 +258,6 @@ test("TA connects Canvas and imports the assignment rubric", async () => {
   expect(screen.getByText(/^Strong/)).toBeVisible()
   expect(screen.queryByDisplayValue("secret-pat")).not.toBeInTheDocument()
 
-  await user.click(
-    screen.getByRole("button", { name: "Import roster and submissions" }),
-  )
   expect(await screen.findByText("1 ready")).toBeVisible()
   expect(screen.getByText("1 missing")).toBeVisible()
   expect(screen.getByText("3 failed")).toBeVisible()
@@ -281,4 +278,7 @@ test("TA connects Canvas and imports the assignment rubric", async () => {
   expect(
     screen.getByText("46 characters ready for evidence matching"),
   ).toBeVisible()
+  expect(
+    screen.queryByRole("button", { name: "Import roster and submissions" }),
+  ).not.toBeInTheDocument()
 })

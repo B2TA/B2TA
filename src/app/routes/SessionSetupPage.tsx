@@ -304,22 +304,24 @@ export default function SessionSetupPage() {
       api.get<CanvasAssignment[]>(`/canvas/courses/${courseId}/assignments`),
     enabled: Boolean(connection && courseId),
   })
-  const importRubric = useMutation({
-    mutationFn: () =>
-      api.post<Rubric>(`/sessions/${id}/canvas/import`, {
+  const importAssignment = useMutation({
+    mutationFn: async () => {
+      const source = {
         courseId: Number(courseId),
         assignmentId: Number(assignmentId),
-      }),
-    onSuccess: (rubric) =>
-      queryClient.setQueryData(["sessions", id, "rubric"], rubric),
-  })
-  const importSubmissions = useMutation({
-    mutationFn: () =>
-      api.post<SubmissionBatch>(`/sessions/${id}/canvas/submissions/import`, {
-        courseId: Number(courseId),
-        assignmentId: Number(assignmentId),
-      }),
-    onSuccess: (batch) => {
+      }
+      const rubric = await api.post<Rubric>(
+        `/sessions/${id}/canvas/import`,
+        source,
+      )
+      const batch = await api.post<SubmissionBatch>(
+        `/sessions/${id}/canvas/submissions/import`,
+        source,
+      )
+      return { rubric, batch }
+    },
+    onSuccess: ({ rubric, batch }) => {
+      queryClient.setQueryData(["sessions", id, "rubric"], rubric)
       setBatchSummary(batch.summary)
       queryClient.setQueryData(
         ["sessions", id, "submissions"],
@@ -504,55 +506,27 @@ export default function SessionSetupPage() {
                     </select>
                   </label>
                 </div>
-                {importRubric.isError ? (
+                {importAssignment.isError ? (
                   <p
                     className="mt-5 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
                     role="alert"
                   >
-                    The Canvas rubric could not be imported. Choose an
-                    assignment with a rubric and try again.
+                    The Canvas assignment could not be imported. Check your
+                    access, then try again.
                   </p>
                 ) : null}
                 <button
                   className="mt-6 min-h-12 bg-amber-600 px-6 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
                   disabled={
-                    !selectedAssignment?.hasRubric || importRubric.isPending
+                    !selectedAssignment?.hasRubric || importAssignment.isPending
                   }
-                  onClick={() => importRubric.mutate()}
+                  onClick={() => importAssignment.mutate()}
                   type="button"
                 >
-                  {importRubric.isPending ? "Importing…" : "Import rubric"}
+                  {importAssignment.isPending
+                    ? "Importing assignment…"
+                    : "Import assignment"}
                 </button>
-                {rubricQuery.data ? (
-                  <div className="mt-8 border-l-4 border-slate-950 pl-5">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">
-                      Step 03
-                    </p>
-                    <h2 className="mt-2 text-xl font-bold">
-                      Bring in the grading batch
-                    </h2>
-                    <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">
-                      Import the student roster, submitted attempts, and PDF
-                      files. Missing or failed work stays visible for review.
-                    </p>
-                    {importSubmissions.isError ? (
-                      <p className="mt-4 text-sm text-red-700" role="alert">
-                        The submission batch could not be imported. Existing
-                        imported work was not removed.
-                      </p>
-                    ) : null}
-                    <button
-                      className="mt-5 min-h-12 bg-slate-950 px-6 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-50"
-                      disabled={importSubmissions.isPending}
-                      onClick={() => importSubmissions.mutate()}
-                      type="button"
-                    >
-                      {importSubmissions.isPending
-                        ? "Importing submissions…"
-                        : "Import roster and submissions"}
-                    </button>
-                  </div>
-                ) : null}
               </div>
             ) : null}
           </section>
