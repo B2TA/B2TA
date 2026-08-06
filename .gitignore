@@ -11,3 +11,8 @@ logs/
 *.log
 .claude-replay.*
 .tmp-*
+
+# Canvas credentials / downloaded student work — never commit
+canvas.env
+*.token
+fixtures/raw/

@@ -1,0 +1,193 @@
+{
+  "id": 1,
+  "name": "HW1",
+  "points_possible": 20.0,
+  "submission_types": [
+    "online_text_entry",
+    "online_url",
+    "online_upload"
+  ],
+  "course_id": 1,
+  "rubric": [
+    {
+      "id": "_1838",
+      "points": 5.0,
+      "description": "Thesis Clarity",
+      "long_description": "Central argument is clearly stated, arguable, and appears early in the essay.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_3845",
+          "points": 5.0,
+          "description": "Exemplary",
+          "long_description": "Thesis is precise, arguable, and elegantly positioned."
+        },
+        {
+          "id": "_4981",
+          "points": 4.0,
+          "description": "Proficient",
+          "long_description": "Thesis is clear and arguable with minor ambiguity."
+        },
+        {
+          "id": "_3577",
+          "points": 3.0,
+          "description": "Developing",
+          "long_description": "Thesis present but broad or partially unclear."
+        },
+        {
+          "id": "_7385",
+          "points": 2.0,
+          "description": "Beginning",
+          "long_description": "Thesis implied but not directly stated."
+        },
+        {
+          "id": "_5478",
+          "points": 1.0,
+          "description": "Insufficient",
+          "long_description": "No identifiable thesis."
+        }
+      ]
+    },
+    {
+      "id": "_7746",
+      "points": 5.0,
+      "description": "Use of Evidence",
+      "long_description": "Integrates at least 3 cited sources; quotations and paraphrases directly support claims.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_5675",
+          "points": 5.0,
+          "description": "Exemplary",
+          "long_description": "Evidence is varied, well-integrated, and thoroughly analyzed."
+        },
+        {
+          "id": "_1658",
+          "points": 4.0,
+          "description": "Proficient",
+          "long_description": "Evidence supports claims; minor integration issues."
+        },
+        {
+          "id": "_5301",
+          "points": 3.0,
+          "description": "Developing",
+          "long_description": "Evidence present but thin or under-analyzed."
+        },
+        {
+          "id": "_695",
+          "points": 2.0,
+          "description": "Beginning",
+          "long_description": "Minimal sources; evidence often dropped in without context."
+        },
+        {
+          "id": "_6215",
+          "points": 1.0,
+          "description": "Insufficient",
+          "long_description": "Little to no evidence cited."
+        }
+      ]
+    },
+    {
+      "id": "_3661",
+      "points": 5.0,
+      "description": "Organization",
+      "long_description": "Logical paragraph structure with clear transitions linking ideas across sections.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_327",
+          "points": 5.0,
+          "description": "Exemplary",
+          "long_description": "Seamless flow; every transition serves the argument."
+        },
+        {
+          "id": "_9982",
+          "points": 4.0,
+          "description": "Proficient",
+          "long_description": "Well-organized; occasional abrupt transitions."
+        },
+        {
+          "id": "_7632",
+          "points": 3.0,
+          "description": "Developing",
+          "long_description": "Basic structure present but transitions weak."
+        },
+        {
+          "id": "_7467",
+          "points": 2.0,
+          "description": "Beginning",
+          "long_description": "Sections feel disjointed; logic hard to follow."
+        },
+        {
+          "id": "_1585",
+          "points": 1.0,
+          "description": "Insufficient",
+          "long_description": "No discernible organizational logic."
+        }
+      ]
+    },
+    {
+      "id": "_5523",
+      "points": 3.0,
+      "description": "Grammar & Mechanics",
+      "long_description": "Minimal errors in grammar, punctuation, and sentence structure throughout.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_37",
+          "points": 3.0,
+          "description": "Proficient",
+          "long_description": "Virtually error-free; prose is polished."
+        },
+        {
+          "id": "_3624",
+          "points": 2.0,
+          "description": "Developing",
+          "long_description": "A few noticeable errors that do not impede reading."
+        },
+        {
+          "id": "_9901",
+          "points": 1.0,
+          "description": "Beginning",
+          "long_description": "Frequent errors that impede comprehension."
+        }
+      ]
+    },
+    {
+      "id": "_2293",
+      "points": 2.0,
+      "description": "Citation Format",
+      "long_description": "All in-text citations and bibliography entries follow MLA or APA format consistently.",
+      "criterion_use_range": false,
+      "ratings": [
+        {
+          "id": "_8749",
+          "points": 2.0,
+          "description": "Proficient",
+          "long_description": "Consistent, correct citation format throughout."
+        },
+        {
+          "id": "_6577",
+          "points": 1.0,
+          "description": "Developing",
+          "long_description": "Minor citation errors or inconsistencies."
+        },
+        {
+          "id": "_5273",
+          "points": 0.0,
+          "description": "Insufficient",
+          "long_description": "Missing citations or wrong format."
+        }
+      ]
+    }
+  ],
+  "rubric_settings": {
+    "id": 2,
+    "title": "Essay 3: Argumentative Analysis Rubric",
+    "points_possible": 20.0,
+    "free_form_criterion_comments": false,
+    "hide_score_total": false,
+    "hide_points": false
+  },
+  "use_rubric_for_grading": true
+}

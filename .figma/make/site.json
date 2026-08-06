@@ -1,7 +1,8 @@
 {
+  "title": "B2TA — TA Grading Assistant",
   "description": "Streamline grading for teaching assistants by cross-referencing student assignments with rubrics, highlighting key information for efficient evaluations.",
   "robots": {
-    "index": false
+    "index": true
   },
   "accessibility": {
     "addBypassLinks": false,
