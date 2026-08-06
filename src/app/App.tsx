@@ -1,23 +1,27 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { useState } from "react"
 import {
   LoginPage,
   SessionListPage,
   SessionSetupPage,
   MarkingPage,
   ReviewPage,
-} from "./routes";
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 30_000,
-      retry: 1,
-    },
-  },
-});
+} from "./routes"
 
 export default function App() {
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 30_000,
+            retry: 1,
+          },
+        },
+      }),
+  )
+
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
@@ -31,5 +35,5 @@ export default function App() {
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>
-  );
+  )
 }

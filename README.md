@@ -83,16 +83,16 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the system and integration boundari
 
 | Area | State |
 |---|---|
-| High-fidelity marking prototype | Built in `src/App.tsx` with fixture data |
-| Production SPA shell | Routes and client state scaffolded under `src/app/` |
+| Session dashboard | Active routed frontend with real API-backed list, create, resume, and delete flows |
+| High-fidelity marking prototype | Retained in `src/App.tsx` as a fixture-backed design reference |
 | Backend monolith | Express API scaffold with health, session, rubric, and submission-list endpoints |
 | Backend persistence and authentication | Not implemented; current state is local and in memory |
 | Canvas API feasibility | Verified against the hackathon Canvas instance |
 | Canvas adapter | Architectural boundary defined; implementation remains in progress |
 | End-to-end production workflow | In progress |
 
-The prototype is still the active frontend entrypoint. The production route shell is not
-yet mounted by `src/main.tsx`.
+`src/main.tsx` mounts the routed standalone application. Marking and review routes remain
+placeholder pages until their full-stack slices are implemented.
 
 ## Running locally
 

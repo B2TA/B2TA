@@ -10,6 +10,8 @@ vite.config.*.timestamp-*
 *-debug.log*
 logs/
 *.log
+playwright-report/
+test-results/
 .claude-replay.*
 .tmp-*
 
