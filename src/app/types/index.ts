@@ -33,7 +33,7 @@ export interface Rubric {
   id: string;
   sessionId: string;
   storageKey: string | null;
-  sourceFormat: "pdf" | "csv" | "xlsx" | "manual" | null;
+  sourceFormat: "pdf" | "csv" | "xlsx" | "manual" | "canvas" | null;
   criteria: Criterion[];
   createdAt: string;
   updatedAt: string;

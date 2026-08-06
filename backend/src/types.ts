@@ -33,7 +33,7 @@ export type Rubric = {
   id: string
   sessionId: string
   storageKey: string | null
-  sourceFormat: "manual"
+  sourceFormat: "manual" | "canvas"
   criteria: Criterion[]
   createdAt: string
   updatedAt: string

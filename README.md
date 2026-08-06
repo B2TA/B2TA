@@ -93,7 +93,8 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the system and integration boundari
 | Backend monolith | Express API scaffold with health, session, rubric, and submission-list endpoints |
 | Backend persistence | Not implemented; current state is local and in memory |
 | Canvas API feasibility | Verified against the hackathon Canvas instance |
-| Canvas adapter | Architectural boundary defined; implementation remains in progress |
+| Canvas connection | Personal access token validation, course/assignment selection, and rubric import implemented |
+| Canvas submissions and grade publication | Not implemented |
 | End-to-end production workflow | In progress |
 
 `src/main.tsx` mounts the routed standalone application. Marking and review routes remain
@@ -158,6 +159,10 @@ ARCHITECTURE.md                              System architecture
 ## Security notes
 
 - The current deployment is for one trusted operator and intentionally has no login.
+- The Canvas personal access token is sent in an authorization header, held only in the
+  backend process, never returned to the browser, and forgotten when the backend stops.
+- Manual Canvas tokens are limited to this trusted single-user phase. A multi-user version
+  must use Canvas OAuth instead of asking users to paste tokens.
 - LMS credentials must remain backend-only and never be exposed to the browser.
 - Student submissions, names, feedback, and access tokens must not be logged at INFO.
 - Student work must not be committed. Fixtures contain generated structures without PII.

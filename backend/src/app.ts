@@ -1,5 +1,10 @@
-import express, { type NextFunction, type Request, type Response } from "express"
+import express, {
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express"
 
+import { CanvasAdapter, CanvasError } from "./canvas.js"
 import { MemoryStore, type RubricInput } from "./store.js"
 
 type ErrorBody = {
@@ -9,20 +14,33 @@ type ErrorBody = {
   }
 }
 
-function sendError(response: Response, status: number, code: string, message: string) {
+function sendError(
+  response: Response,
+  status: number,
+  code: string,
+  message: string,
+) {
   const body: ErrorBody = { error: { code, message } }
   return response.status(status).json(body)
 }
 
 function isRubricInput(value: unknown): value is RubricInput {
-  if (typeof value !== "object" || value === null || !("criteria" in value)) return false
+  if (typeof value !== "object" || value === null || !("criteria" in value))
+    return false
   const criteria = (value as { criteria?: unknown }).criteria
   if (!Array.isArray(criteria) || criteria.length === 0) return false
 
   return criteria.every((criterion) => {
     if (typeof criterion !== "object" || criterion === null) return false
-    const candidate = criterion as { title?: unknown; performanceLevels?: unknown }
-    if (typeof candidate.title !== "string" || candidate.title.trim().length === 0) return false
+    const candidate = criterion as {
+      title?: unknown
+      performanceLevels?: unknown
+    }
+    if (
+      typeof candidate.title !== "string" ||
+      candidate.title.trim().length === 0
+    )
+      return false
     if (candidate.performanceLevels === undefined) return true
     if (!Array.isArray(candidate.performanceLevels)) return false
     return candidate.performanceLevels.every(
@@ -35,15 +53,30 @@ function isRubricInput(value: unknown): value is RubricInput {
   })
 }
 
-export function createApp(store = new MemoryStore()) {
+function parseNumericId(value: unknown): number | null {
+  if (typeof value !== "string" && typeof value !== "number") return null
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+export function createApp(
+  store = new MemoryStore(),
+  canvas = new CanvasAdapter(),
+) {
   const app = express()
 
   app.disable("x-powered-by")
   app.use(express.json({ limit: "1mb" }))
   app.use((request, response, next) => {
-    response.setHeader("Access-Control-Allow-Origin", process.env.WEB_ORIGIN ?? "http://localhost:8443")
+    response.setHeader(
+      "Access-Control-Allow-Origin",
+      process.env.WEB_ORIGIN ?? "http://localhost:8443",
+    )
     response.setHeader("Access-Control-Allow-Headers", "Content-Type")
-    response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+    response.setHeader(
+      "Access-Control-Allow-Methods",
+      "GET, POST, PUT, DELETE, OPTIONS",
+    )
     if (request.method === "OPTIONS") return response.sendStatus(204)
     next()
   })
@@ -52,14 +85,50 @@ export function createApp(store = new MemoryStore()) {
     response.json({ status: "ok" })
   })
 
+  app.post("/api/canvas/connection", async (request, response) => {
+    const baseUrl =
+      typeof request.body?.baseUrl === "string" ? request.body.baseUrl : ""
+    const accessToken =
+      typeof request.body?.accessToken === "string"
+        ? request.body.accessToken
+        : ""
+    const connection = await canvas.connect(baseUrl, accessToken)
+    return response.status(201).json(connection)
+  })
+
+  app.get("/api/canvas/courses", async (_request, response) => {
+    return response.json(await canvas.listCourses())
+  })
+
+  app.get(
+    "/api/canvas/courses/:courseId/assignments",
+    async (request, response) => {
+      const courseId = parseNumericId(request.params.courseId)
+      if (!courseId)
+        return sendError(
+          response,
+          400,
+          "invalid_course_id",
+          "Course id must be a positive integer",
+        )
+      return response.json(await canvas.listAssignments(courseId))
+    },
+  )
+
   app.get("/api/sessions", (_request, response) => {
     response.json(store.listSessions())
   })
 
   app.post("/api/sessions", (request, response) => {
-    const name = typeof request.body?.name === "string" ? request.body.name.trim() : ""
+    const name =
+      typeof request.body?.name === "string" ? request.body.name.trim() : ""
     if (name.length === 0 || name.length > 200) {
-      return sendError(response, 400, "invalid_session_name", "Session name must be 1 to 200 characters")
+      return sendError(
+        response,
+        400,
+        "invalid_session_name",
+        "Session name must be 1 to 200 characters",
+      )
     }
 
     return response.status(201).json(store.createSession(name))
@@ -67,7 +136,8 @@ export function createApp(store = new MemoryStore()) {
 
   app.get("/api/sessions/:id", (request, response) => {
     const session = store.getSession(request.params.id)
-    if (!session) return sendError(response, 404, "session_not_found", "Session not found")
+    if (!session)
+      return sendError(response, 404, "session_not_found", "Session not found")
     return response.json(session)
   })
 
@@ -84,7 +154,8 @@ export function createApp(store = new MemoryStore()) {
     }
 
     const rubric = store.getRubric(request.params.id)
-    if (!rubric) return sendError(response, 404, "rubric_not_found", "Rubric not found")
+    if (!rubric)
+      return sendError(response, 404, "rubric_not_found", "Rubric not found")
     return response.json(rubric)
   })
 
@@ -93,10 +164,56 @@ export function createApp(store = new MemoryStore()) {
       return sendError(response, 404, "session_not_found", "Session not found")
     }
     if (!isRubricInput(request.body)) {
-      return sendError(response, 400, "invalid_rubric", "Rubric requires at least one titled criterion")
+      return sendError(
+        response,
+        400,
+        "invalid_rubric",
+        "Rubric requires at least one titled criterion",
+      )
     }
 
     return response.json(store.saveRubric(request.params.id, request.body))
+  })
+
+  app.post("/api/sessions/:id/canvas/import", async (request, response) => {
+    if (!store.getSession(request.params.id)) {
+      return sendError(response, 404, "session_not_found", "Session not found")
+    }
+    const courseId = parseNumericId(request.body?.courseId)
+    const assignmentId = parseNumericId(request.body?.assignmentId)
+    if (!courseId || !assignmentId) {
+      return sendError(
+        response,
+        400,
+        "invalid_canvas_source",
+        "Choose a Canvas course and assignment",
+      )
+    }
+
+    const assignment = await canvas.getAssignment(courseId, assignmentId)
+    if (!Array.isArray(assignment.rubric) || assignment.rubric.length === 0) {
+      return sendError(
+        response,
+        422,
+        "canvas_rubric_missing",
+        "This Canvas assignment has no rubric",
+      )
+    }
+
+    const rubric = store.saveRubric(request.params.id, {
+      sourceFormat: "canvas",
+      criteria: assignment.rubric.map((criterion) => ({
+        title: criterion.description,
+        description: criterion.long_description ?? "",
+        maxPoints: criterion.points ?? null,
+        performanceLevels: (criterion.ratings ?? []).map((rating) => ({
+          label: rating.description,
+          description: rating.long_description ?? "",
+          points: rating.points ?? null,
+        })),
+      })),
+    })
+    return response.json(rubric)
   })
 
   app.get("/api/sessions/:id/submissions", (request, response) => {
@@ -106,11 +223,28 @@ export function createApp(store = new MemoryStore()) {
     return response.json(store.listSubmissions(request.params.id))
   })
 
-  app.use((_request, response) => sendError(response, 404, "route_not_found", "Route not found"))
-  app.use((error: unknown, _request: Request, response: Response, _next: NextFunction) => {
-    console.error(error)
-    return sendError(response, 500, "internal_error", "Unexpected server error")
-  })
+  app.use((_request, response) =>
+    sendError(response, 404, "route_not_found", "Route not found"),
+  )
+  app.use(
+    (
+      error: unknown,
+      _request: Request,
+      response: Response,
+      _next: NextFunction,
+    ) => {
+      if (error instanceof CanvasError) {
+        return sendError(response, error.status, error.code, error.message)
+      }
+      console.error(error)
+      return sendError(
+        response,
+        500,
+        "internal_error",
+        "Unexpected server error",
+      )
+    },
+  )
 
   return app
 }

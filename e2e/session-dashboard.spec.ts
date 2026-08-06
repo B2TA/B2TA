@@ -15,7 +15,7 @@ test("TA can create, resume, and delete a grading session", async ({
   await page.getByRole("button", { name: "Create session" }).click()
 
   await expect(
-    page.getByRole("heading", { name: "Session Setup" }),
+    page.getByRole("heading", { name: "Connect this session to Canvas" }),
   ).toBeVisible()
 
   await page.goto("/sessions")
@@ -24,7 +24,7 @@ test("TA can create, resume, and delete a grading session", async ({
     .getByRole("link", { name: `Resume grading ${sessionName}` })
     .click()
   await expect(
-    page.getByRole("heading", { name: "Session Setup" }),
+    page.getByRole("heading", { name: "Connect this session to Canvas" }),
   ).toBeVisible()
 
   await page.goto("/sessions")

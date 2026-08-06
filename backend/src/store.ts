@@ -11,6 +11,7 @@ const CRITERION_COLORS = [
 ]
 
 export type RubricInput = {
+  sourceFormat?: "manual" | "canvas"
   criteria: Array<{
     title: string
     description?: string
@@ -94,7 +95,7 @@ export class MemoryStore {
       id: rubricId,
       sessionId,
       storageKey: null,
-      sourceFormat: "manual",
+      sourceFormat: input.sourceFormat ?? "manual",
       criteria,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,

@@ -25,8 +25,8 @@ background queues or independently deployed services.
 
 The current `MemoryStore` is intentionally temporary. It holds grading sessions, rubrics,
 and empty submission collections for local frontend integration, and all state resets on
-process restart. Durable persistence, uploads, grading records, analysis, and Canvas API
-calls remain future vertical slices.
+process restart. Durable persistence, uploads, grading records, analysis, Canvas submission
+import, and grade publication remain future vertical slices.
 
 The current deployment model has one trusted operator. It has no login or multi-user
 authorization boundary. Authentication becomes required only if B2TA is opened to
@@ -79,7 +79,7 @@ The backend stays monolithic while keeping clear internal ownership:
 | Persistence | Store and retrieve canonical state | In-memory implementation only |
 | File ingestion | Accept files and normalize their text | Not implemented |
 | AI assistance | Suggest evidence and feedback without assigning scores | Not implemented |
-| LMS adapters | Import external data and publish reviewed results | Canvas boundary defined, not implemented |
+| LMS adapters | Import external data and publish reviewed results | Canvas PAT connection and rubric import implemented |
 
 An internal module boundary is not a deployment boundary. New capabilities should remain
 in the Express application unless operational evidence creates a concrete need to split

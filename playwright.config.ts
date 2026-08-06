@@ -9,6 +9,11 @@ export default defineConfig({
   },
   webServer: [
     {
+      command: "node e2e/fixtures/canvas-server.mjs",
+      reuseExistingServer: true,
+      url: "http://127.0.0.1:3002/api/v1/users/self/profile",
+    },
+    {
       command: "pnpm dev:api",
       reuseExistingServer: true,
       url: "http://127.0.0.1:3001/api/health",

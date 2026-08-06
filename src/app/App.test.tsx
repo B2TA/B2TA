@@ -59,17 +59,20 @@ test("TA can create a grading session and continue to setup", async () => {
     "fetch",
     vi
       .fn()
-      .mockImplementation((_input: RequestInfo | URL, init?: RequestInit) =>
-        Promise.resolve(
-          new Response(
-            JSON.stringify(init?.method === "POST" ? createdSession : []),
-            {
-              status: init?.method === "POST" ? 201 : 200,
-              headers: { "Content-Type": "application/json" },
-            },
-          ),
-        ),
-      ),
+      .mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        const isRubric = url.endsWith("/rubric")
+        const body =
+          init?.method === "POST" || url.endsWith("/session-new")
+            ? createdSession
+            : []
+        return Promise.resolve(
+          new Response(JSON.stringify(isRubric ? {} : body), {
+            status: isRubric ? 404 : init?.method === "POST" ? 201 : 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        )
+      }),
   )
   const user = userEvent.setup()
 
@@ -83,9 +86,13 @@ test("TA can create a grading session and continue to setup", async () => {
   await user.click(screen.getByRole("button", { name: /create session/i }))
 
   expect(
-    await screen.findByRole("heading", { name: "Session Setup" }),
+    await screen.findByRole("heading", {
+      name: "Connect this session to Canvas",
+    }),
   ).toBeVisible()
-  expect(screen.getByText("Session: session-new")).toBeVisible()
+  expect(
+    screen.getByRole("heading", { name: "WRDS 150 · Research essay" }),
+  ).toBeVisible()
 })
 
 test("TA can delete a grading session after confirming", async () => {
