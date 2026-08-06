@@ -1,0 +1,41 @@
+Figma Make Prompt: Canvas LMS Rubric-Assisted Marking Extension
+Copy everything below into Figma Make.
+---
+Design a realistic, high-fidelity UI for a browser extension that overlays on top of the Canvas LMS "SpeedGrader" assignment marking page, built to help Teaching Assistants grade faster by connecting rubric criteria directly to relevant parts of a student's submission.
+Context and base layout
+Recreate a believable Canvas LMS SpeedGrader screen as the backdrop:
+Top bar: Canvas's signature dark navy/near-black (#2D3B45) header with the Canvas "panda" logo mark placeholder, assignment title ("Essay 3: Argumentative Analysis"), student name dropdown with arrows to move between submissions, and a submission count ("Student 7 of 24").
+Center panel: a student's submitted document (styled like a PDF/text submission viewer) showing a few paragraphs of realistic essay text with normal formatting (headings, paragraphs, occasional citations).
+Bottom-left dock: Canvas's native grade entry box and comment box, kept visible but visually secondary to the new overlay.
+Use Canvas's real design language: Lato/Helvetica-style sans-serif font, Canvas blue (#0374B5) for links/active states, light gray (#F5F5F5) page background, white content cards with subtle borders (#C7CDD1).
+The extension overlay (the main design focus)
+Design this as a distinct, clearly "layered on top" panel — it should look like an injected browser extension, not a native Canvas feature. Give it a subtle shadow, a slightly different corner radius or accent color, and a small extension icon/badge in the corner so it reads as third-party.
+1. Right-hand Rubric Sidebar (collapsible)
+A vertical panel docked to the right edge of the browser window, ~320–360px wide, with a toggle tab to collapse/expand it.
+Header: extension name/logo (e.g. "GradeLens"), assignment name, and a compact progress indicator ("Criteria addressed: 3/5").
+List of rubric criteria as individual cards, each showing:
+Criterion title (e.g. "Thesis Clarity", "Use of Evidence", "Organization", "Grammar & Mechanics", "Citation Format")
+Point value and achieved rating level (e.g. "4/5 pts — Proficient") shown as a small segmented control or star/level selector
+A short description of what the criterion looks for
+A color swatch/tag matching the highlight color used in the submission text (this color-coding is the core mechanic — each rubric row has a unique accent color: e.g. thesis = amber, evidence = teal, organization = purple, grammar = coral, citations = blue)
+A small "jump to evidence" icon-button that scrolls/highlights the relevant submission passage when clicked
+At the bottom of the sidebar: total score auto-calculated from selected levels, a "Sync to Canvas gradebook" primary button, and a quick comment/feedback text field with AI-suggested comment snippets tied to the selected rubric levels.
+2. In-text highlighting on the submission
+Overlay soft, semi-transparent highlight blocks directly on top of the student's submission text, color-matched to the rubric sidebar's criteria colors (e.g. amber highlight under the thesis statement, teal highlights under quoted evidence, purple highlights marking transition sentences).
+Each highlighted span has a small numbered or colored tab/flag in the left margin of the submission that a TA can hover to reveal a tooltip: which rubric criterion it maps to and a one-line rationale (e.g. "Matches 'Use of Evidence' — direct quotation with citation").
+Include 1–2 example tooltips shown in an open/active state so the interaction is visible in the static design.
+Show a couple of highlights already "confirmed" by the TA (solid border) vs. AI-suggested but unconfirmed (dashed border) to convey a human-in-the-loop review step.
+3. Floating mini-toolbar
+A small floating control near the top of the submission pane with: highlight visibility toggle, "next flagged passage" arrow buttons, and a settings gear for adjusting highlight sensitivity/opacity.
+Interaction & state details to depict
+One rubric card in an "active/selected" state (expanded, showing level descriptors) to demonstrate the criterion-selection interaction.
+A subtle connecting line or matching color glow between the selected sidebar card and its corresponding highlighted text, so the linkage is visually obvious even in a static frame.
+Empty/idle state hint text under criteria with no matched evidence yet: "No matching passage found — flag manually."
+Visual style
+Clean, modern SaaS aesthetic that still feels compatible with Canvas's utilitarian, accessible design system — avoid looking like a totally separate app.
+Rounded corners (8px), soft drop shadows on the sidebar and tooltips, generous whitespace, accessible color contrast (WCAG AA) even with the colored highlights.
+Include a light/dark mode toggle affordance in the extension header (optional second frame showing dark mode).
+Deliverable
+Produce this as a single desktop browser frame (1440×900) at full fidelity, with the rubric sidebar expanded, at least 4 color-coded rubric criteria visible, and 3–4 corresponding highlighted passages in the submission text with one active tooltip shown open.
+---
+Tips before pasting: swap in your real rubric criteria/point values, your extension's actual name/logo, and your preferred accent color palette so Figma Make ties the highlight colors to your brand rather than the placeholders above.
