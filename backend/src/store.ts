@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 
 import type {
+  CanvasPublicationOutcome,
   Criterion,
   GradingRecord,
   Rubric,
@@ -8,6 +9,12 @@ import type {
   Submission,
   SuggestedMatch,
 } from "./types.js"
+
+export type CanvasAssignmentLink = {
+  courseId: number
+  assignmentId: number
+  criterionIds: Record<string, string>
+}
 
 export type SubmissionInput = Omit<Submission, "id" | "sessionId" | "createdAt" | "artifactUrl" | "storageKey" | "position"> & {
   artifact: {
@@ -56,6 +63,9 @@ export class MemoryStore {
   readonly #artifacts = new Map<string, SubmissionArtifact>()
   readonly #gradingRecords = new Map<string, GradingRecord>()
   readonly #suggestions = new Map<string, SuggestedMatch[]>()
+  readonly #canvasLinks = new Map<string, CanvasAssignmentLink>()
+  readonly #publicationOutcomes =
+    new Map<string, Map<string, CanvasPublicationOutcome>>()
 
   listSessions(): Session[] {
     return [...this.#sessions.values()].sort((a, b) =>
@@ -91,7 +101,41 @@ export class MemoryStore {
     }
     this.#rubrics.delete(id)
     this.#submissions.delete(id)
+    this.#canvasLinks.delete(id)
+    this.#publicationOutcomes.delete(id)
     return this.#sessions.delete(id)
+  }
+
+  getCanvasLink(sessionId: string): CanvasAssignmentLink | undefined {
+    return this.#canvasLinks.get(sessionId)
+  }
+
+  saveCanvasLink(sessionId: string, link: CanvasAssignmentLink): void {
+    this.#canvasLinks.set(sessionId, link)
+    this.#publicationOutcomes.delete(sessionId)
+  }
+
+  confirmReview(sessionId: string): Session | undefined {
+    const session = this.#sessions.get(sessionId)
+    if (!session) return undefined
+    const now = new Date().toISOString()
+    const confirmed = {
+      ...session,
+      reviewConfirmedAt: now,
+      updatedAt: now,
+    }
+    this.#sessions.set(sessionId, confirmed)
+    return confirmed
+  }
+
+  invalidateReview(sessionId: string): void {
+    const session = this.#sessions.get(sessionId)
+    if (!session?.reviewConfirmedAt) return
+    this.#sessions.set(sessionId, {
+      ...session,
+      reviewConfirmedAt: null,
+      updatedAt: new Date().toISOString(),
+    })
   }
 
   getRubric(sessionId: string): Rubric | undefined {
@@ -142,6 +186,8 @@ export class MemoryStore {
     }
 
     this.#rubrics.set(sessionId, rubric)
+    this.invalidateReview(sessionId)
+    this.#publicationOutcomes.delete(sessionId)
     return rubric
   }
 
@@ -184,6 +230,8 @@ export class MemoryStore {
       }
     })
     this.#submissions.set(sessionId, submissions)
+    this.invalidateReview(sessionId)
+    this.#publicationOutcomes.delete(sessionId)
     return submissions
   }
 
@@ -202,6 +250,7 @@ export class MemoryStore {
   }
 
   saveGradingRecord(
+    sessionId: string,
     submissionId: string,
     input: GradingRecordInput,
   ): GradingRecord {
@@ -224,7 +273,37 @@ export class MemoryStore {
       createdAt: existing?.createdAt ?? now,
     }
     this.#gradingRecords.set(submissionId, record)
+    this.invalidateReview(sessionId)
+    this.#publicationOutcomes.get(sessionId)?.delete(submissionId)
     return record
+  }
+
+  listPublicationOutcomes(sessionId: string): CanvasPublicationOutcome[] {
+    const outcomes = this.#publicationOutcomes.get(sessionId)
+    if (!outcomes) return []
+    return this.listSubmissions(sessionId).flatMap((submission) => {
+      const outcome = outcomes.get(submission.id)
+      return outcome ? [outcome] : []
+    })
+  }
+
+  getPublicationOutcome(
+    sessionId: string,
+    submissionId: string,
+  ): CanvasPublicationOutcome | undefined {
+    return this.#publicationOutcomes.get(sessionId)?.get(submissionId)
+  }
+
+  savePublicationOutcome(
+    sessionId: string,
+    outcome: CanvasPublicationOutcome,
+  ): CanvasPublicationOutcome {
+    const outcomes =
+      this.#publicationOutcomes.get(sessionId) ??
+      new Map<string, CanvasPublicationOutcome>()
+    outcomes.set(outcome.submissionId, outcome)
+    this.#publicationOutcomes.set(sessionId, outcomes)
+    return outcome
   }
 
   listSuggestions(submissionId: string): SuggestedMatch[] {

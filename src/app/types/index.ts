@@ -179,7 +179,7 @@ export interface ReviewSubmissionSummary {
   flags: ReviewFlag[]
 }
 
-export type ReviewFlag = "incomplete_grading" | "extraction_failed" | "oversized" | "unverified_identity" | "disambiguation_required" | "manual_overrides"
+export type ReviewFlag = "incomplete_grading" | "extraction_failed" | "missing_submission" | "oversized" | "unverified_identity" | "disambiguation_required" | "manual_overrides"
 
 export interface ReviewData {
   sessionId: string
@@ -187,6 +187,25 @@ export interface ReviewData {
   reviewConfirmedAt: string | null
   flaggedCount: number
   unflaggedCount: number
+}
+
+export interface CanvasPublicationOutcome {
+  submissionId: string
+  studentDisplayName: string
+  status: "published" | "failed"
+  error: string | null
+  publishedAt: string | null
+  gradingRecordSavedAt: string
+}
+
+export interface CanvasPublication {
+  summary: {
+    total: number
+    published: number
+    failed: number
+    skipped: number
+  }
+  outcomes: CanvasPublicationOutcome[]
 }
 
 // --- Export ---

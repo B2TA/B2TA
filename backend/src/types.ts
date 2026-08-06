@@ -80,6 +80,15 @@ export type GradingRecord = {
   createdAt: string
 }
 
+export type CanvasPublicationOutcome = {
+  submissionId: string
+  studentDisplayName: string
+  status: "published" | "failed"
+  error: string | null
+  publishedAt: string | null
+  gradingRecordSavedAt: string
+}
+
 export type SuggestedMatch = {
   id: string
   submissionId: string

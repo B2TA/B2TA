@@ -67,6 +67,26 @@ const server = createServer((request, response) => {
   }
 
   const path = new URL(request.url ?? "/", "http://canvas.test").pathname
+  if (
+    request.method === "PUT" &&
+    path === "/api/v1/courses/42/assignments/99/submissions/12"
+  ) {
+    const chunks = []
+    request.on("data", (chunk) => chunks.push(Buffer.from(chunk)))
+    request.on("end", () => {
+      const grade = new URLSearchParams(Buffer.concat(chunks).toString("utf8"))
+      if (
+        grade.get("submission[posted_grade]") !== "5" ||
+        grade.get("rubric_assessment[criterion-1][points]") !== "5"
+      ) {
+        response.writeHead(422).end(JSON.stringify({ error: "Invalid grade" }))
+        return
+      }
+      response.setHeader("Content-Type", "application/json")
+      response.end(JSON.stringify({ user_id: 12, score: 5 }))
+    })
+    return
+  }
   if (path === "/files/501/download") {
     response.setHeader("Content-Type", "application/pdf")
     response.end(submissionPdf)

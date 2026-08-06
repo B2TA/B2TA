@@ -35,6 +35,8 @@ let textPdf = Buffer.alloc(0)
 let scannedPdf = Buffer.alloc(0)
 let encryptedPdf = Buffer.alloc(0)
 const malformedPdf = Buffer.from("%PDF-1.4\nnot a valid document\n%%EOF")
+const publishedGrades = new Map<string, string[]>()
+let caseyPublishFailuresRemaining = 1
 
 const canvasAssignment = {
   id: 99,
@@ -77,6 +79,29 @@ const canvasServer = createServer((request, response) => {
   const url = new URL(request.url ?? "/", "http://canvas.test")
   const path = url.pathname
   const canvasOrigin = `http://${request.headers.host}`
+  const gradeMatch = path.match(
+    /^\/api\/v1\/courses\/42\/assignments\/99\/submissions\/(\d+)$/,
+  )
+  if (request.method === "PUT" && gradeMatch) {
+    const studentId = gradeMatch[1]
+    const chunks: Buffer[] = []
+    request.on("data", (chunk) => chunks.push(Buffer.from(chunk)))
+    request.on("end", () => {
+      const body = Buffer.concat(chunks).toString("utf8")
+      publishedGrades.set(studentId, [
+        ...(publishedGrades.get(studentId) ?? []),
+        body,
+      ])
+      if (studentId === "14" && caseyPublishFailuresRemaining > 0) {
+        caseyPublishFailuresRemaining -= 1
+        response.writeHead(503).end(JSON.stringify({ error: "Try again" }))
+        return
+      }
+      response.setHeader("Content-Type", "application/json")
+      response.end(JSON.stringify({ user_id: Number(studentId) }))
+    })
+    return
+  }
   if (path === "/files/501/download") {
     response.setHeader("Content-Type", "application/pdf")
     response.end(textPdf)
@@ -544,4 +569,165 @@ test("TA imports a stable Canvas submission batch with displayable PDFs", async 
     `${apiBaseUrl}/api/sessions/${session.id}/submissions`,
   )
   assert.deepEqual(await persistedResponse.json(), batch.submissions)
+})
+
+test("TA confirms reviewed grades and safely retries Canvas publication", async () => {
+  publishedGrades.clear()
+  caseyPublishFailuresRemaining = 1
+  await fetch(`${apiBaseUrl}/api/canvas/connection`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ baseUrl: canvasBaseUrl, accessToken: "canvas-pat" }),
+  })
+  const session = await fetch(`${apiBaseUrl}/api/sessions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "Canvas publication" }),
+  }).then((response) => response.json() as Promise<{ id: string }>)
+  const rubric = await fetch(
+    `${apiBaseUrl}/api/sessions/${session.id}/canvas/import`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ courseId: 42, assignmentId: 99 }),
+    },
+  ).then(
+    (response) =>
+      response.json() as Promise<{
+        criteria: Array<{
+          id: string
+          performanceLevels: Array<{ id: string }>
+        }>
+      }>,
+  )
+  const batch = await fetch(
+    `${apiBaseUrl}/api/sessions/${session.id}/canvas/submissions/import`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ courseId: 42, assignmentId: 99 }),
+    },
+  ).then(
+    (response) =>
+      response.json() as Promise<{
+        submissions: Array<{
+          id: string
+          importStatus: string
+          studentDisplayName: string
+        }>
+      }>,
+  )
+
+  const incompleteConfirmation = await fetch(
+    `${apiBaseUrl}/api/sessions/${session.id}/review/confirm`,
+    { method: "POST" },
+  )
+  assert.equal(incompleteConfirmation.status, 409)
+
+  for (const submission of batch.submissions.filter(
+    (item) => item.importStatus === "ready",
+  )) {
+    const gradeResponse = await fetch(
+      `${apiBaseUrl}/api/sessions/${session.id}/submissions/${submission.id}/grading-record`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          overallFeedback: `Overall feedback for ${submission.studentDisplayName}`,
+          criterionScores: [
+            {
+              criterionId: rubric.criteria[0].id,
+              selectedLevelId: rubric.criteria[0].performanceLevels[0].id,
+              overridePoints: null,
+              criterionFeedback: "Focused and specific.",
+            },
+          ],
+        }),
+      },
+    )
+    assert.equal(gradeResponse.status, 200)
+  }
+
+  const confirmResponse = await fetch(
+    `${apiBaseUrl}/api/sessions/${session.id}/review/confirm`,
+    { method: "POST" },
+  )
+  assert.equal(confirmResponse.status, 200)
+
+  const firstPublish = await fetch(
+    `${apiBaseUrl}/api/sessions/${session.id}/canvas/publication`,
+    { method: "POST" },
+  )
+  assert.equal(firstPublish.status, 200)
+  assert.deepEqual(
+    ((await firstPublish.json()) as { summary: Record<string, number> })
+      .summary,
+    { total: 2, published: 1, failed: 1, skipped: 0 },
+  )
+  assert.equal(publishedGrades.get("12")?.length, 1)
+  assert.equal(publishedGrades.get("14")?.length, 1)
+  const alexGrade = new URLSearchParams(publishedGrades.get("12")?.[0])
+  assert.equal(alexGrade.get("submission[posted_grade]"), "5")
+  assert.equal(
+    alexGrade.get("comment[text_comment]"),
+    "Overall feedback for Alex Able",
+  )
+  assert.equal(alexGrade.get("rubric_assessment[criterion-1][points]"), "5")
+  assert.equal(
+    alexGrade.get("rubric_assessment[criterion-1][comments]"),
+    "Focused and specific.",
+  )
+
+  const retryPublish = await fetch(
+    `${apiBaseUrl}/api/sessions/${session.id}/canvas/publication`,
+    { method: "POST" },
+  )
+  assert.equal(retryPublish.status, 200)
+  assert.deepEqual(
+    ((await retryPublish.json()) as { summary: Record<string, number> })
+      .summary,
+    { total: 2, published: 2, failed: 0, skipped: 1 },
+  )
+  assert.equal(publishedGrades.get("12")?.length, 1)
+  assert.equal(publishedGrades.get("14")?.length, 2)
+
+  const persisted = await fetch(
+    `${apiBaseUrl}/api/sessions/${session.id}/canvas/publication`,
+  ).then(
+    (response) =>
+      response.json() as Promise<{
+        outcomes: Array<{ status: string }>
+      }>,
+  )
+  assert.deepEqual(
+    persisted.outcomes.map((outcome) => outcome.status),
+    ["published", "published"],
+  )
+
+  const alexSubmission = batch.submissions.find(
+    (submission) => submission.studentDisplayName === "Alex Able",
+  )!
+  await fetch(
+    `${apiBaseUrl}/api/sessions/${session.id}/submissions/${alexSubmission.id}/grading-record`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        overallFeedback: "Updated after review.",
+        criterionScores: [
+          {
+            criterionId: rubric.criteria[0].id,
+            selectedLevelId: rubric.criteria[0].performanceLevels[0].id,
+            overridePoints: null,
+            criterionFeedback: "Updated criterion feedback.",
+          },
+        ],
+      }),
+    },
+  )
+  const staleReviewPublish = await fetch(
+    `${apiBaseUrl}/api/sessions/${session.id}/canvas/publication`,
+    { method: "POST" },
+  )
+  assert.equal(staleReviewPublish.status, 409)
 })

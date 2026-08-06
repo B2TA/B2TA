@@ -16,6 +16,11 @@ import {
   type GradingRecordInput,
   type RubricInput,
 } from "./store.js"
+import type {
+  CanvasPublicationOutcome,
+  GradingRecord,
+  Rubric,
+} from "./types.js"
 
 type ErrorBody = {
   error: {
@@ -127,6 +132,100 @@ function parseGradingRecord(
   return {
     overallFeedback: body.overallFeedback.trim(),
     criterionScores: scores as GradingRecordInput["criterionScores"],
+  }
+}
+
+function pointsForScore(
+  score: GradingRecord["criterionScores"][number],
+  rubric: Rubric,
+): number {
+  if (score.overridePoints !== null) return score.overridePoints
+  const criterion = rubric.criteria.find(
+    (item) => item.id === score.criterionId,
+  )
+  return (
+    criterion?.performanceLevels.find(
+      (level) => level.id === score.selectedLevelId,
+    )?.points ?? 0
+  )
+}
+
+function reviewData(store: MemoryStore, sessionId: string) {
+  const session = store.getSession(sessionId)
+  const rubric = store.getRubric(sessionId)
+  if (!session || !rubric) return null
+  const submissions = store.listSubmissions(sessionId)
+  const summaries = submissions.map((submission) => {
+    const record = store.getGradingRecord(submission.id)
+    const requiresGrade = submission.importStatus === "ready"
+    const criterionScores = rubric.criteria.map((criterion) => {
+      const score = record?.criterionScores.find(
+        (item) => item.criterionId === criterion.id,
+      )
+      const level = criterion.performanceLevels.find(
+        (item) => item.id === score?.selectedLevelId,
+      )
+      return {
+        criterionId: criterion.id,
+        points: score ? pointsForScore(score, rubric) : null,
+        levelLabel: level?.label ?? null,
+      }
+    })
+    const flags = [
+      ...(requiresGrade && !record ? ["incomplete_grading" as const] : []),
+      ...(submission.importStatus === "failed"
+        ? ["extraction_failed" as const]
+        : []),
+      ...(submission.importStatus === "missing"
+        ? ["missing_submission" as const]
+        : []),
+    ]
+    return {
+      submissionId: submission.id,
+      studentDisplayName: submission.studentDisplayName,
+      criterionScores,
+      total: record
+        ? record.criterionScores.reduce(
+            (sum, score) => sum + pointsForScore(score, rubric),
+            0,
+          )
+        : null,
+      maxPossible: rubric.criteria.reduce(
+        (sum, criterion) => sum + (criterion.maxPoints ?? 0),
+        0,
+      ),
+      flags,
+    }
+  })
+  return {
+    sessionId,
+    submissions: summaries,
+    reviewConfirmedAt: session.reviewConfirmedAt,
+    flaggedCount: summaries.filter((summary) => summary.flags.length > 0)
+      .length,
+    unflaggedCount: summaries.filter((summary) => summary.flags.length === 0)
+      .length,
+  }
+}
+
+function publicationResponse(
+  store: MemoryStore,
+  sessionId: string,
+  skipped = 0,
+) {
+  const outcomes = store.listPublicationOutcomes(sessionId)
+  const total = store
+    .listSubmissions(sessionId)
+    .filter((submission) => submission.importStatus === "ready").length
+  return {
+    summary: {
+      total,
+      published: outcomes.filter((outcome) => outcome.status === "published")
+        .length,
+      failed: outcomes.filter((outcome) => outcome.status === "failed").length,
+      skipped,
+    },
+    outcomes,
   }
 }
 
@@ -301,7 +400,152 @@ export function createApp(
           "invalid_grading_record",
           "Score every criterion with a rubric level or valid point override",
         )
-      return response.json(store.saveGradingRecord(submission.id, input))
+      return response.json(
+        store.saveGradingRecord(request.params.id, submission.id, input),
+      )
+    },
+  )
+
+  app.get("/api/sessions/:id/review", (request, response) => {
+    const review = reviewData(store, request.params.id)
+    if (!review)
+      return sendError(
+        response,
+        404,
+        "review_unavailable",
+        "Import a rubric before reviewing",
+      )
+    return response.json(review)
+  })
+
+  app.post("/api/sessions/:id/review/confirm", (request, response) => {
+    const review = reviewData(store, request.params.id)
+    if (!review)
+      return sendError(
+        response,
+        404,
+        "review_unavailable",
+        "Import a rubric before reviewing",
+      )
+    const readySubmissions = store
+      .listSubmissions(request.params.id)
+      .filter((submission) => submission.importStatus === "ready")
+    if (
+      readySubmissions.length === 0 ||
+      readySubmissions.some(
+        (submission) => !store.getGradingRecord(submission.id),
+      )
+    ) {
+      return sendError(
+        response,
+        409,
+        "review_incomplete",
+        "Grade every ready submission before confirming the review",
+      )
+    }
+    const session = store.confirmReview(request.params.id)
+    return response.json({
+      ...review,
+      reviewConfirmedAt: session!.reviewConfirmedAt,
+    })
+  })
+
+  app.get("/api/sessions/:id/canvas/publication", (request, response) => {
+    if (!store.getSession(request.params.id)) {
+      return sendError(response, 404, "session_not_found", "Session not found")
+    }
+    return response.json(publicationResponse(store, request.params.id))
+  })
+
+  app.post(
+    "/api/sessions/:id/canvas/publication",
+    async (request, response) => {
+      const session = store.getSession(request.params.id)
+      const rubric = store.getRubric(request.params.id)
+      const link = store.getCanvasLink(request.params.id)
+      if (!session || !rubric)
+        return sendError(
+          response,
+          404,
+          "session_not_found",
+          "Session not found",
+        )
+      if (!link)
+        return sendError(
+          response,
+          409,
+          "canvas_assignment_not_linked",
+          "Import a Canvas assignment before publishing",
+        )
+      if (!session.reviewConfirmedAt)
+        return sendError(
+          response,
+          409,
+          "review_not_confirmed",
+          "Confirm the current review before publishing",
+        )
+
+      let skipped = 0
+      for (const submission of store
+        .listSubmissions(request.params.id)
+        .filter((item) => item.importStatus === "ready")) {
+        const record = store.getGradingRecord(submission.id)
+        if (!record) continue
+        const existing = store.getPublicationOutcome(
+          request.params.id,
+          submission.id,
+        )
+        if (
+          existing?.status === "published" &&
+          existing.gradingRecordSavedAt === record.savedAt
+        ) {
+          skipped += 1
+          continue
+        }
+
+        let outcome: CanvasPublicationOutcome
+        try {
+          await canvas.publishGrade({
+            courseId: link.courseId,
+            assignmentId: link.assignmentId,
+            studentId: submission.externalStudentId,
+            totalPoints: record.criterionScores.reduce(
+              (sum, score) => sum + pointsForScore(score, rubric),
+              0,
+            ),
+            overallFeedback: record.overallFeedback,
+            criteria: record.criterionScores.map((score) => ({
+              canvasCriterionId: link.criterionIds[score.criterionId],
+              points: pointsForScore(score, rubric),
+              feedback: score.criterionFeedback,
+            })),
+          })
+          outcome = {
+            submissionId: submission.id,
+            studentDisplayName: submission.studentDisplayName,
+            status: "published",
+            error: null,
+            publishedAt: new Date().toISOString(),
+            gradingRecordSavedAt: record.savedAt,
+          }
+        } catch (error) {
+          outcome = {
+            submissionId: submission.id,
+            studentDisplayName: submission.studentDisplayName,
+            status: "failed",
+            error:
+              error instanceof Error
+                ? error.message
+                : "Canvas publication failed",
+            publishedAt: null,
+            gradingRecordSavedAt: record.savedAt,
+          }
+        }
+        store.savePublicationOutcome(request.params.id, outcome)
+      }
+      return response.json(
+        publicationResponse(store, request.params.id, skipped),
+      )
     },
   )
 
@@ -466,6 +710,16 @@ export function createApp(
           points: rating.points ?? null,
         })),
       })),
+    })
+    store.saveCanvasLink(request.params.id, {
+      courseId,
+      assignmentId,
+      criterionIds: Object.fromEntries(
+        rubric.criteria.map((criterion, index) => [
+          criterion.id,
+          assignment.rubric![index].id,
+        ]),
+      ),
     })
     return response.json(rubric)
   })

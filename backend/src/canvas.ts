@@ -86,6 +86,19 @@ export type CanvasSubmissionImport = {
   } | null
 }
 
+export type CanvasGradePublication = {
+  courseId: number
+  assignmentId: number
+  studentId: string
+  totalPoints: number
+  overallFeedback: string
+  criteria: Array<{
+    canvasCriterionId: string
+    points: number
+    feedback: string
+  }>
+}
+
 const MAX_PDF_BYTES = 25 * 1024 * 1024
 
 function htmlToText(value: string): string {
@@ -278,6 +291,28 @@ export class CanvasAdapter {
       )
     }
     return imported
+  }
+
+  async publishGrade(publication: CanvasGradePublication): Promise<void> {
+    const connection = this.#requireConnection()
+    const body = new URLSearchParams()
+    body.set("submission[posted_grade]", String(publication.totalPoints))
+    if (publication.overallFeedback) {
+      body.set("comment[text_comment]", publication.overallFeedback)
+    }
+    for (const criterion of publication.criteria) {
+      const key = `rubric_assessment[${criterion.canvasCriterionId}]`
+      body.set(`${key}[points]`, String(criterion.points))
+      if (criterion.feedback) body.set(`${key}[comments]`, criterion.feedback)
+    }
+    const url = `${connection.baseUrl}/api/v1/courses/${publication.courseId}/assignments/${publication.assignmentId}/submissions/${publication.studentId}`
+    await this.#fetch(url, connection.accessToken, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+      },
+      body: body.toString(),
+    })
   }
 
   async #normalizeSubmission(
@@ -514,11 +549,19 @@ export class CanvasAdapter {
     return (await response.json()) as T
   }
 
-  async #fetch(url: string, accessToken: string): Promise<Response> {
+  async #fetch(
+    url: string,
+    accessToken: string,
+    init: RequestInit = {},
+  ): Promise<Response> {
     let response: Response
     try {
       response = await fetch(url, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+        ...init,
+        headers: {
+          ...init.headers,
+          Authorization: `Bearer ${accessToken}`,
+        },
         signal: AbortSignal.timeout(15_000),
       })
     } catch {

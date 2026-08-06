@@ -78,9 +78,9 @@ access.
 |---|---|
 | Frontend | React 19, Vite 8, Tailwind CSS v4 — Amplify Hosting |
 | Backend | Express 5 and TypeScript — one monolithic process |
-| Current state | In-memory store for sessions, rubrics, submissions, grading records, PDF artifacts, and evidence suggestions |
+| Current state | In-memory store for sessions, rubrics, submissions, grading records, PDF artifacts, evidence suggestions, review confirmation, and Canvas publication outcomes |
 | AI runtime | AWS Bedrock with Claude Sonnet 4.6, called from the backend monolith |
-| Planned modules | Durable persistence and grade publication |
+| Planned modules | Durable persistence |
 | LMS integration | Provider-neutral adapter boundary; Canvas first |
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the system and integration boundaries.
@@ -96,12 +96,12 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the system and integration boundari
 | Canvas API feasibility | Verified against the hackathon Canvas instance |
 | Canvas connection | Personal access token validation, course/assignment selection, and rubric import implemented |
 | Canvas submissions | Roster, attempts, text entries, missing work, PDF display, and embedded-text extraction implemented |
-| Canvas grade publication | Not implemented |
+| Canvas grade publication | Explicit review-gated publication of rubric scores and feedback with per-student outcomes and safe partial-failure retries |
 | AI evidence suggestions | Bedrock Claude Sonnet 4.6 highlights validated rubric-linked passages; the AI never assigns scores |
 | End-to-end production workflow | In progress |
 
-`src/main.tsx` mounts the routed standalone application. The marking route is active;
-batch review remains a placeholder until its full-stack slice is implemented.
+`src/main.tsx` mounts the routed standalone application. The marking and batch-review
+routes are active; confirmed grading records can be published back to Canvas.
 
 ## Running locally
 

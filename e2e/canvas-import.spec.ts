@@ -105,6 +105,23 @@ test("TA imports a Canvas rubric, roster, and PDF submission batch", async ({
     page.getByRole("radio", { name: "Strong — 5 points" }),
   ).toBeChecked()
 
+  await page.getByRole("link", { name: "Review & publish" }).click()
+  await expect(
+    page.getByRole("heading", { name: "Review grading batch" }),
+  ).toBeVisible()
+  await expect(page.getByText("Alex Able")).toBeVisible()
+  await expect(page.getByText("5/5 pts")).toBeVisible()
+  await expect(page.getByText("Missing submission")).toBeVisible()
+  await page.getByRole("button", { name: "Confirm review" }).click()
+  await expect(page.getByText("Review confirmed")).toBeVisible()
+  await page.getByRole("button", { name: "Publish grades to Canvas" }).click()
+  await expect(page.getByText("Published to Canvas")).toBeVisible()
+  await expect(
+    page.getByText("All gradeable submissions are published."),
+  ).toBeVisible()
+  await page.reload()
+  await expect(page.getByText("Published to Canvas")).toBeVisible()
+
   await page.goto("/sessions")
   await page.getByRole("button", { name: `Delete ${sessionName}` }).click()
   await page.getByRole("button", { name: "Delete session" }).click()

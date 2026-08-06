@@ -244,6 +244,12 @@ export default function MarkingPage() {
               Submission {submission.position + 1} · Attempt{" "}
               {submission.attemptCount}
             </p>
+            <Link
+              className="mt-1 inline-block font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-300 hover:text-amber-200"
+              to={`/sessions/${id}/review`}
+            >
+              Review &amp; publish →
+            </Link>
           </div>
         </div>
       </header>
