@@ -4,7 +4,7 @@ Description: "Grading Assistant - SQS Queue and Dead Letter Queue"
 Parameters:
   EnvironmentName:
     Type: String
-    Default: grading-assistant
+    Default: rubric-grading-assistant
     Description: Environment name prefix for resource naming
 
 Resources:
@@ -12,26 +12,26 @@ Resources:
   GradingJobDLQ:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "${EnvironmentName}-job-dlq"
-      MessageRetentionPeriod: 1209600  # 14 days in seconds
+      QueueName: !Sub "${EnvironmentName}-dlq"
+      MessageRetentionPeriod: 345600  # 4 days in seconds (matches hand-rolled DLQ)
       Tags:
         - Key: Name
-          Value: !Sub "${EnvironmentName}-job-dlq"
+          Value: !Sub "${EnvironmentName}-dlq"
 
   # ---------- Main Job Queue ----------
   GradingJobQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "${EnvironmentName}-job-queue"
+      QueueName: !Sub "${EnvironmentName}-queue"
       VisibilityTimeout: 300  # 5 minutes - covers longest operation
-      MessageRetentionPeriod: 345600  # 4 days in seconds
+      MessageRetentionPeriod: 1209600  # 14 days in seconds (matches hand-rolled queue)
       ReceiveMessageWaitTimeSeconds: 20  # Long polling
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt GradingJobDLQ.Arn
-        maxReceiveCount: 3
+        maxReceiveCount: 5
       Tags:
         - Key: Name
-          Value: !Sub "${EnvironmentName}-job-queue"
+          Value: !Sub "${EnvironmentName}-queue"
 
 Outputs:
   JobQueueUrl:

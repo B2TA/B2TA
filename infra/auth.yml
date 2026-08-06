@@ -1,28 +1,20 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "Grading Assistant - Cognito User Pool (admin-only account creation, email+password)"
+Description: "Grading Assistant - Cognito User Pool (self-signup, email+password direct auth)"
 
 Parameters:
   EnvironmentName:
     Type: String
-    Default: grading-assistant
+    Default: rubric-grading-assistant
     Description: Environment name prefix for resource naming
-
-  CallbackUrl:
-    Type: String
-    Default: "https://localhost:3000"
-    Description: OAuth callback URL for the frontend app
 
 Resources:
   # ---------- Cognito User Pool ----------
   GradingUserPool:
     Type: AWS::Cognito::UserPool
     Properties:
-      UserPoolName: !Sub "${EnvironmentName}-user-pool"
+      UserPoolName: !Ref EnvironmentName
       AdminCreateUserConfig:
-        AllowAdminCreateUserOnly: true  # No self-signup
-        InviteMessageTemplate:
-          EmailSubject: "Your Grading Assistant account"
-          EmailMessage: "Your administrator has created an account for you. Your temporary password is {####}. Please sign in and change your password."
+        AllowAdminCreateUserOnly: false  # Self-signup allowed (matches hand-rolled pool)
       UsernameAttributes:
         - email
       AutoVerifiedAttributes:
@@ -45,46 +37,20 @@ Resources:
           - Name: verified_email
             Priority: 1
       UserPoolTags:
-        Name: !Sub "${EnvironmentName}-user-pool"
+        Name: !Ref EnvironmentName
 
   # ---------- User Pool Client ----------
+  # Direct-auth SPA client (no hosted UI / OAuth) to match the hand-rolled client.
   GradingUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
     Properties:
-      ClientName: !Sub "${EnvironmentName}-web-client"
+      ClientName: !Sub "${EnvironmentName}-web"
       UserPoolId: !Ref GradingUserPool
       GenerateSecret: false  # SPA client - no secret
       ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
         - ALLOW_USER_SRP_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
-      PreventUserExistenceErrors: ENABLED
-      SupportedIdentityProviders:
-        - COGNITO
-      CallbackURLs:
-        - !Ref CallbackUrl
-      LogoutURLs:
-        - !Ref CallbackUrl
-      AllowedOAuthFlows:
-        - code
-      AllowedOAuthScopes:
-        - email
-        - openid
-        - profile
-      AllowedOAuthFlowsUserPoolClient: true
-      AccessTokenValidity: 1  # 1 hour
-      IdTokenValidity: 1  # 1 hour
-      RefreshTokenValidity: 30  # 30 days
-      TokenValidityUnits:
-        AccessToken: hours
-        IdToken: hours
-        RefreshToken: days
-
-  # ---------- User Pool Domain ----------
-  GradingUserPoolDomain:
-    Type: AWS::Cognito::UserPoolDomain
-    Properties:
-      Domain: !Sub "${EnvironmentName}-${AWS::AccountId}"
-      UserPoolId: !Ref GradingUserPool
 
 Outputs:
   UserPoolId:
@@ -104,9 +70,3 @@ Outputs:
     Value: !Ref GradingUserPoolClient
     Export:
       Name: !Sub "${EnvironmentName}-UserPoolClientId"
-
-  UserPoolDomain:
-    Description: Cognito User Pool Domain
-    Value: !Sub "${EnvironmentName}-${AWS::AccountId}"
-    Export:
-      Name: !Sub "${EnvironmentName}-UserPoolDomain"

@@ -4,7 +4,7 @@ Description: "Grading Assistant - ECS Fargate Cluster, Task Definitions, ALB, Ta
 Parameters:
   EnvironmentName:
     Type: String
-    Default: grading-assistant
+    Default: rubric-grading-assistant
     Description: Environment name prefix for resource naming
 
   VpcId:
