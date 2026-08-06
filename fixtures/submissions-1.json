@@ -1,0 +1,101 @@
+[
+  {
+    "id": 1003,
+    "user_id": 3,
+    "assignment_id": 1,
+    "workflow_state": "submitted",
+    "submission_type": "online_text_entry",
+    "attempt": 1,
+    "body": "<p>The question of whether social media platforms bear moral responsibility for political polarization has moved from academic seminars into courtrooms and congressional hearings. I will argue that platforms are not neutral conduits but active architects of epistemic bubbles, and that this architectural complicity carries genuine moral weight. This essay examines the amplification algorithm, the advertising incentive structure, and the suppression of cross-cutting exposure to substantiate that claim.</p><p>To understand how platforms shape belief, one must first acknowledge the design intent embedded in recommendation systems. According to Pariser (2011), the \"filter bubble\" emerges not from user choice alone but from algorithmic curation that optimizes for engagement over exposure diversity. Studies show that users who receive algorithmically curated feeds are 40% more likely to share partisan content than users on reverse-chronological feeds (Bail et al., 2018, p. 9024). This evidence suggests that the architecture, not merely the audience, is causally implicated.</p><p>Critics of this view argue that users bear primary responsibility for their own information diet. However, this critique underestimates the asymmetry of expertise between platform engineers and ordinary users. Furthermore, internal documents released in the 2021 Facebook Papers reveal that company researchers were aware polarization metrics rose with engagement optimization, yet the feature remained live. The limitation of the \"user choice\" framework is that it treats an unequal relationship as symmetrical.</p><p>The advertising model compounds the problem. Platforms generate revenue proportional to time-on-site, and outrage reliably extends sessions. Therefore, any financial incentive for platforms runs counter to the depolarization interventions researchers propose. This structural conflict of interest distinguishes platform complicity from the more passive negligence of, say, a telephone company whose infrastructure happens to carry inflammatory speech.</p><p>In conclusion, the architecture of engagement-maximizing platforms is not value-neutral. First, it systematically narrows the epistemic range of users. Finally, it sustains itself through financial incentives that are structurally opposed to reform. Assigning moral responsibility to platforms is therefore not a category error but an accurate description of causal agency. The path forward requires treating platform design as a site of democratic accountability, not merely a market matter.</p>",
+    "submitted_at": "2026-08-04T18:32:11Z",
+    "score": null,
+    "graded_at": null,
+    "user": {
+      "id": 3,
+      "name": "Maya Chen",
+      "sortable_name": "Chen, Maya",
+      "short_name": "Maya"
+    }
+  },
+  {
+    "id": 1004,
+    "user_id": 4,
+    "assignment_id": 1,
+    "workflow_state": "submitted",
+    "submission_type": "online_text_entry",
+    "attempt": 1,
+    "body": "<p>Social media is bad for politics. Many people think this and I agree with them. This essay will talk about some reasons why.</p><p>One reason is that algorithms show you things you already like. Pariser wrote a book about this. It is called the filter bubble and it is a big problem for society today.</p><p>Another reason is advertising. Companies want you to stay online longer so they can show more ads. This means they do not care if the content is angry or divisive.</p><p>In conclusion social media platforms should be more responsible. They have a lot of power and they should use it better than they currently do.</p>",
+    "submitted_at": "2026-08-04T18:32:11Z",
+    "score": null,
+    "graded_at": null,
+    "user": {
+      "id": 4,
+      "name": "Diego Alvarez",
+      "sortable_name": "Alvarez, Diego",
+      "short_name": "Diego"
+    }
+  },
+  {
+    "id": 1005,
+    "user_id": 5,
+    "assignment_id": 1,
+    "workflow_state": "graded",
+    "submission_type": "online_text_entry",
+    "attempt": 1,
+    "body": "<p>The question of whether social media platforms bear moral responsibility for political polarization has moved from academic seminars into courtrooms and congressional hearings. I will argue that platforms are not neutral conduits but active architects of epistemic bubbles, and that this architectural complicity carries genuine moral weight. This essay examines the amplification algorithm, the advertising incentive structure, and the suppression of cross-cutting exposure to substantiate that claim.</p><p>To understand how platforms shape belief, one must first acknowledge the design intent embedded in recommendation systems. According to Pariser (2011), the \"filter bubble\" emerges not from user choice alone but from algorithmic curation that optimizes for engagement over exposure diversity. Studies show that users who receive algorithmically curated feeds are 40% more likely to share partisan content than users on reverse-chronological feeds (Bail et al., 2018, p. 9024). This evidence suggests that the architecture, not merely the audience, is causally implicated.</p><p>Critics of this view argue that users bear primary responsibility for their own information diet. However, this critique underestimates the asymmetry of expertise between platform engineers and ordinary users. Furthermore, internal documents released in the 2021 Facebook Papers reveal that company researchers were aware polarization metrics rose with engagement optimization, yet the feature remained live. The limitation of the \"user choice\" framework is that it treats an unequal relationship as symmetrical.</p>",
+    "submitted_at": "2026-08-04T18:32:11Z",
+    "score": 16.0,
+    "graded_at": "2026-08-05T09:14:02Z",
+    "user": {
+      "id": 5,
+      "name": "Priya Nair",
+      "sortable_name": "Nair, Priya",
+      "short_name": "Priya"
+    },
+    "rubric_assessment": {
+      "_1838": {
+        "points": 4.0,
+        "rating_id": "blank",
+        "comments": ""
+      },
+      "_7746": {
+        "points": 3.0,
+        "rating_id": "blank",
+        "comments": ""
+      },
+      "_3661": {
+        "points": 4.0,
+        "rating_id": "blank",
+        "comments": ""
+      },
+      "_5523": {
+        "points": 3.0,
+        "rating_id": "blank",
+        "comments": ""
+      },
+      "_2293": {
+        "points": 2.0,
+        "rating_id": "blank",
+        "comments": ""
+      }
+    }
+  },
+  {
+    "id": 1006,
+    "user_id": 6,
+    "assignment_id": 1,
+    "workflow_state": "unsubmitted",
+    "submission_type": null,
+    "attempt": null,
+    "body": null,
+    "submitted_at": null,
+    "score": null,
+    "graded_at": null,
+    "user": {
+      "id": 6,
+      "name": "Sam Okafor",
+      "sortable_name": "Okafor, Sam",
+      "short_name": "Sam"
+    }
+  }
+]

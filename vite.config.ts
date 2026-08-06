@@ -34,6 +34,15 @@ export default defineConfig(({ mode }) => {
       port: parseInt(process.env.PORT || '8443'),
       strictPort: true,
       watch: { ignored: ['**/.figma/**'] },
+      // Proxy /api to the backend so the dev server is same-origin with it, the
+      // way the deployed app is. Without this the browser blocks every call as
+      // cross-origin, and the backend has no CORS config by design.
+      proxy: {
+        '/api': {
+          target: process.env.VITE_API_TARGET || 'http://localhost:8080',
+          changeOrigin: true,
+        },
+      },
     },
     preview: {
       host: '0.0.0.0',

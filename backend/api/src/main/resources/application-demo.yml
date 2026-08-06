@@ -1,0 +1,29 @@
+# Demo profile: Canvas grading flow with no database.
+#
+# Serves committed fixtures instead of calling Canvas, and runs the real Bedrock
+# analysis when AWS credentials are present. Nothing here writes to Canvas.
+spring:
+  main:
+    banner-mode: off
+
+server:
+  port: ${DEMO_PORT:8080}
+
+# Fixture paths are resolved relative to the process working directory, which is
+# the api module when launched via spring-boot:run.
+canvas:
+  data-source: fixtures
+  fixtures-path: ${CANVAS_FIXTURES_PATH:../../fixtures}
+  course-id: "1"
+
+analyze:
+  enabled: ${ANALYZE_ENABLED:true}
+  model-id: ${BEDROCK_MODEL_ID:us.anthropic.claude-sonnet-4-5-20250929-v1:0}
+
+aws:
+  region: ${AWS_REGION:us-east-1}
+
+logging:
+  level:
+    com.b2ta.api.canvas: INFO
+    com.b2ta.api.analyze: INFO
