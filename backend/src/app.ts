@@ -216,12 +216,89 @@ export function createApp(
     return response.json(rubric)
   })
 
+  app.post(
+    "/api/sessions/:id/canvas/submissions/import",
+    async (request, response) => {
+      if (!store.getSession(request.params.id)) {
+        return sendError(
+          response,
+          404,
+          "session_not_found",
+          "Session not found",
+        )
+      }
+      const courseId = parseNumericId(request.body?.courseId)
+      const assignmentId = parseNumericId(request.body?.assignmentId)
+      if (!courseId || !assignmentId) {
+        return sendError(
+          response,
+          400,
+          "invalid_canvas_source",
+          "Choose a Canvas course and assignment",
+        )
+      }
+
+      const imported = await canvas.importSubmissions(courseId, assignmentId)
+      const submissions = store.saveSubmissionBatch(request.params.id, imported)
+      return response.json({
+        summary: {
+          totalStudents: submissions.length,
+          imported: submissions.filter((item) => item.importStatus === "ready")
+            .length,
+          missing: submissions.filter((item) => item.importStatus === "missing")
+            .length,
+          failed: submissions.filter((item) => item.importStatus === "failed")
+            .length,
+          multipleAttempts: submissions.filter((item) => item.attemptCount > 1)
+            .length,
+        },
+        submissions,
+      })
+    },
+  )
+
   app.get("/api/sessions/:id/submissions", (request, response) => {
     if (!store.getSession(request.params.id)) {
       return sendError(response, 404, "session_not_found", "Session not found")
     }
     return response.json(store.listSubmissions(request.params.id))
   })
+
+  app.get(
+    "/api/sessions/:id/submissions/:submissionId/artifact",
+    (request, response) => {
+      if (!store.getSession(request.params.id)) {
+        return sendError(
+          response,
+          404,
+          "session_not_found",
+          "Session not found",
+        )
+      }
+      const artifact = store.getSubmissionArtifact(
+        request.params.id,
+        request.params.submissionId,
+      )
+      if (!artifact) {
+        return sendError(
+          response,
+          404,
+          "artifact_not_found",
+          "Submission artifact not found",
+        )
+      }
+      const filename = artifact.filename.replace(
+        /[^\x20-\x21\x23-\x5b\x5d-\x7e]/g,
+        "_",
+      )
+      response.setHeader("Content-Type", artifact.contentType)
+      response.setHeader(
+        "Content-Disposition",
+        `inline; filename="${filename}"`,
+      )
+      return response.send(artifact.data)
+    },
+  )
 
   app.use((_request, response) =>
     sendError(response, 404, "route_not_found", "Route not found"),

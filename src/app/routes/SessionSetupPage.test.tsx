@@ -45,6 +45,84 @@ const importedRubric = {
   ],
 }
 
+const importedBatch = {
+  summary: {
+    totalStudents: 3,
+    imported: 1,
+    missing: 1,
+    failed: 1,
+    multipleAttempts: 1,
+  },
+  submissions: [
+    {
+      id: "submission-1",
+      sessionId: "session-1",
+      storageKey: "memory://submission-1",
+      originalFilename: "alex-hw1.pdf",
+      studentDisplayName: "Alex Able",
+      externalStudentId: "12",
+      externalSubmissionId: "812",
+      identityStatus: "verified",
+      importStatus: "ready",
+      submissionType: "pdf",
+      attemptCount: 2,
+      submittedAt: "2026-08-06T18:00:00Z",
+      artifactUrl: "/api/sessions/session-1/submissions/submission-1/artifact",
+      extractionStatus: "pending",
+      extractionFailureReason: null,
+      extractedText: null,
+      extractedCharCount: null,
+      isOversized: false,
+      position: 0,
+      createdAt: "2026-08-06T18:00:00Z",
+    },
+    {
+      id: "submission-2",
+      sessionId: "session-1",
+      storageKey: null,
+      originalFilename: "",
+      studentDisplayName: "Blair Baker",
+      externalStudentId: "13",
+      externalSubmissionId: "813",
+      identityStatus: "verified",
+      importStatus: "missing",
+      submissionType: "missing",
+      attemptCount: 0,
+      submittedAt: null,
+      artifactUrl: null,
+      extractionStatus: "not_applicable",
+      extractionFailureReason: null,
+      extractedText: null,
+      extractedCharCount: null,
+      isOversized: false,
+      position: 1,
+      createdAt: "2026-08-06T18:00:00Z",
+    },
+    {
+      id: "submission-3",
+      sessionId: "session-1",
+      storageKey: null,
+      originalFilename: "devon-hw1.pdf",
+      studentDisplayName: "Devon Diaz",
+      externalStudentId: "15",
+      externalSubmissionId: "815",
+      identityStatus: "verified",
+      importStatus: "failed",
+      submissionType: "pdf",
+      attemptCount: 1,
+      submittedAt: "2026-08-06T20:00:00Z",
+      artifactUrl: null,
+      extractionStatus: "failed",
+      extractionFailureReason: "attachment_download_failed",
+      extractedText: null,
+      extractedCharCount: null,
+      isOversized: false,
+      position: 2,
+      createdAt: "2026-08-06T18:00:00Z",
+    },
+  ],
+}
+
 beforeEach(() => {
   window.history.pushState({}, "", "/sessions/session-1/setup")
   vi.stubGlobal(
@@ -63,6 +141,11 @@ beforeEach(() => {
 
         if (url.endsWith("/api/sessions/session-1/rubric") && !init?.method)
           return json({}, 404)
+        if (
+          url.endsWith("/api/sessions/session-1/submissions") &&
+          !init?.method
+        )
+          return json([])
         if (url.endsWith("/api/sessions/session-1")) return json(session)
         if (url.endsWith("/api/canvas/connection") && init?.method === "POST") {
           return json(
@@ -92,6 +175,12 @@ beforeEach(() => {
           init?.method === "POST"
         ) {
           return json(importedRubric)
+        }
+        if (
+          url.endsWith("/api/sessions/session-1/canvas/submissions/import") &&
+          init?.method === "POST"
+        ) {
+          return json(importedBatch)
         }
         return json({ error: "Unexpected request" }, 500)
       }),
@@ -124,4 +213,21 @@ test("TA connects Canvas and imports the assignment rubric", async () => {
   ).toBeVisible()
   expect(screen.getByText(/^Strong/)).toBeVisible()
   expect(screen.queryByDisplayValue("secret-pat")).not.toBeInTheDocument()
+
+  await user.click(
+    screen.getByRole("button", { name: "Import roster and submissions" }),
+  )
+  expect(await screen.findByText("1 ready")).toBeVisible()
+  expect(screen.getByText("1 missing")).toBeVisible()
+  expect(screen.getByText("1 failed")).toBeVisible()
+  expect(screen.getByText("Alex Able")).toBeVisible()
+  expect(screen.getByText(/2 attempts/)).toBeVisible()
+  expect(screen.getByRole("link", { name: "View PDF" })).toHaveAttribute(
+    "href",
+    "/api/sessions/session-1/submissions/submission-1/artifact",
+  )
+  expect(screen.getByText("Blair Baker")).toBeVisible()
+  expect(screen.getByText("Missing submission")).toBeVisible()
+  expect(screen.getByText("Devon Diaz")).toBeVisible()
+  expect(screen.getByText("Import failed")).toBeVisible()
 })

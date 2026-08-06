@@ -3,7 +3,7 @@ import { useState, type FormEvent } from "react"
 import { Link, useParams } from "react-router"
 
 import api, { ApiError } from "../api"
-import type { Rubric, Session } from "../types"
+import type { Rubric, Session, Submission } from "../types"
 
 type CanvasConnection = {
   connected: true
@@ -22,6 +22,126 @@ type CanvasAssignment = {
   name: string
   pointsPossible: number | null
   hasRubric: boolean
+}
+
+type SubmissionBatchSummary = {
+  totalStudents: number
+  imported: number
+  missing: number
+  failed: number
+  multipleAttempts: number
+}
+
+type SubmissionBatch = {
+  summary: SubmissionBatchSummary
+  submissions: Submission[]
+}
+
+function summarizeSubmissions(
+  submissions: Submission[],
+): SubmissionBatchSummary {
+  return {
+    totalStudents: submissions.length,
+    imported: submissions.filter((item) => item.importStatus === "ready")
+      .length,
+    missing: submissions.filter((item) => item.importStatus === "missing")
+      .length,
+    failed: submissions.filter((item) => item.importStatus === "failed").length,
+    multipleAttempts: submissions.filter((item) => item.attemptCount > 1)
+      .length,
+  }
+}
+
+function SubmissionBatchSummaryView({ summary, submissions }: SubmissionBatch) {
+  return (
+    <section
+      aria-labelledby="submissions-heading"
+      className="mt-12 border-t border-slate-300 pt-8"
+    >
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-700">
+            Submission batch
+          </p>
+          <h2 className="mt-2 text-2xl font-bold" id="submissions-heading">
+            Canvas roster imported
+          </h2>
+        </div>
+        <p className="font-mono text-xs text-slate-500">
+          {summary.totalStudents} students · {summary.multipleAttempts} with
+          multiple attempts
+        </p>
+      </div>
+
+      <div className="mt-6 grid grid-cols-3 border border-slate-300 bg-white">
+        {[
+          [summary.imported, "ready", "text-emerald-700"],
+          [summary.missing, "missing", "text-amber-700"],
+          [summary.failed, "failed", "text-red-700"],
+        ].map(([count, label, color]) => (
+          <div
+            className="border-r border-slate-200 p-4 last:border-r-0"
+            key={String(label)}
+          >
+            <p className={`text-xl font-bold ${color}`}>
+              {count} {label}
+            </p>
+            <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-slate-500">
+              submissions
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <ol className="mt-6 divide-y divide-slate-200 border-y border-slate-300">
+        {submissions.map((submission, index) => (
+          <li
+            className="grid items-center gap-3 py-4 sm:grid-cols-[2.5rem_1fr_auto]"
+            key={submission.id}
+          >
+            <span className="font-mono text-xs text-slate-400">
+              {String(index + 1).padStart(2, "0")}
+            </span>
+            <div>
+              <p className="font-semibold">{submission.studentDisplayName}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                {submission.importStatus === "missing"
+                  ? "Missing submission"
+                  : submission.importStatus === "failed"
+                    ? "Import failed"
+                    : submission.originalFilename}
+                {submission.attemptCount > 1
+                  ? ` · ${submission.attemptCount} attempts`
+                  : ""}
+              </p>
+            </div>
+            {submission.artifactUrl ? (
+              <a
+                className="w-fit border border-slate-300 bg-white px-4 py-2 text-xs font-semibold hover:border-amber-600 hover:text-amber-700"
+                href={submission.artifactUrl}
+                rel="noreferrer"
+                target="_blank"
+              >
+                View PDF
+              </a>
+            ) : (
+              <span
+                className={`font-mono text-[10px] font-semibold uppercase tracking-[0.14em] ${
+                  submission.importStatus === "missing"
+                    ? "text-amber-700"
+                    : submission.importStatus === "failed"
+                      ? "text-red-700"
+                      : "text-emerald-700"
+                }`}
+              >
+                {submission.importStatus}
+              </span>
+            )}
+          </li>
+        ))}
+      </ol>
+    </section>
+  )
 }
 
 function RubricSummary({ rubric }: { rubric: Rubric }) {
@@ -102,6 +222,8 @@ export default function SessionSetupPage() {
   const [connection, setConnection] = useState<CanvasConnection | null>(null)
   const [courseId, setCourseId] = useState("")
   const [assignmentId, setAssignmentId] = useState("")
+  const [batchSummary, setBatchSummary] =
+    useState<SubmissionBatchSummary | null>(null)
 
   const sessionQuery = useQuery({
     queryKey: ["sessions", id],
@@ -118,6 +240,11 @@ export default function SessionSetupPage() {
         throw error
       }
     },
+    enabled: Boolean(id),
+  })
+  const submissionsQuery = useQuery({
+    queryKey: ["sessions", id, "submissions"],
+    queryFn: () => api.get<Submission[]>(`/sessions/${id}/submissions`),
     enabled: Boolean(id),
   })
   const connectCanvas = useMutation({
@@ -150,6 +277,20 @@ export default function SessionSetupPage() {
       }),
     onSuccess: (rubric) =>
       queryClient.setQueryData(["sessions", id, "rubric"], rubric),
+  })
+  const importSubmissions = useMutation({
+    mutationFn: () =>
+      api.post<SubmissionBatch>(`/sessions/${id}/canvas/submissions/import`, {
+        courseId: Number(courseId),
+        assignmentId: Number(assignmentId),
+      }),
+    onSuccess: (batch) => {
+      setBatchSummary(batch.summary)
+      queryClient.setQueryData(
+        ["sessions", id, "submissions"],
+        batch.submissions,
+      )
+    },
   })
 
   function handleConnect(event: FormEvent<HTMLFormElement>) {
@@ -347,6 +488,36 @@ export default function SessionSetupPage() {
                 >
                   {importRubric.isPending ? "Importing…" : "Import rubric"}
                 </button>
+                {rubricQuery.data ? (
+                  <div className="mt-8 border-l-4 border-slate-950 pl-5">
+                    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">
+                      Step 03
+                    </p>
+                    <h2 className="mt-2 text-xl font-bold">
+                      Bring in the grading batch
+                    </h2>
+                    <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">
+                      Import the student roster, submitted attempts, and PDF
+                      files. Missing or failed work stays visible for review.
+                    </p>
+                    {importSubmissions.isError ? (
+                      <p className="mt-4 text-sm text-red-700" role="alert">
+                        The submission batch could not be imported. Existing
+                        imported work was not removed.
+                      </p>
+                    ) : null}
+                    <button
+                      className="mt-5 min-h-12 bg-slate-950 px-6 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-50"
+                      disabled={importSubmissions.isPending}
+                      onClick={() => importSubmissions.mutate()}
+                      type="button"
+                    >
+                      {importSubmissions.isPending
+                        ? "Importing submissions…"
+                        : "Import roster and submissions"}
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </section>
@@ -367,6 +538,14 @@ export default function SessionSetupPage() {
         </div>
 
         {rubricQuery.data ? <RubricSummary rubric={rubricQuery.data} /> : null}
+        {(submissionsQuery.data?.length ?? 0) > 0 ? (
+          <SubmissionBatchSummaryView
+            submissions={submissionsQuery.data ?? []}
+            summary={
+              batchSummary ?? summarizeSubmissions(submissionsQuery.data ?? [])
+            }
+          />
+        ) : null}
       </div>
     </main>
   )

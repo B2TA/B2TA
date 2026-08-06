@@ -75,11 +75,11 @@ The backend stays monolithic while keeping clear internal ownership:
 | Module | Responsibility | State |
 |---|---|---|
 | HTTP API | Request validation, response formatting, and frontend contract | Initial routes implemented |
-| Grading core | Sessions, rubrics, submissions, evidence, scores, feedback, and review | Sessions and rubrics started |
+| Grading core | Sessions, rubrics, submissions, evidence, scores, feedback, and review | Sessions, rubrics, and Canvas submission batches started |
 | Persistence | Store and retrieve canonical state | In-memory implementation only |
-| File ingestion | Accept files and normalize their text | Not implemented |
+| File ingestion | Accept files and normalize their text | Canvas PDFs retained in memory for inline display; text entries normalized |
 | AI assistance | Suggest evidence and feedback without assigning scores | Not implemented |
-| LMS adapters | Import external data and publish reviewed results | Canvas PAT connection and rubric import implemented |
+| LMS adapters | Import external data and publish reviewed results | Canvas PAT, rubric, roster, attempt, text-entry, and PDF import implemented |
 
 An internal module boundary is not a deployment boundary. New capabilities should remain
 in the Express application unless operational evidence creates a concrete need to split

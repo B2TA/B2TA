@@ -42,12 +42,18 @@ export type Rubric = {
 export type Submission = {
   id: string
   sessionId: string
-  storageKey: string
+  storageKey: string | null
   originalFilename: string
   studentDisplayName: string
+  externalStudentId: string
   externalSubmissionId: string | null
   identityStatus: "verified" | "unverified" | "disambiguation_required"
-  extractionStatus: "pending" | "success" | "failed"
+  importStatus: "ready" | "missing" | "failed"
+  submissionType: "pdf" | "text" | "missing" | "unsupported"
+  attemptCount: number
+  submittedAt: string | null
+  artifactUrl: string | null
+  extractionStatus: "pending" | "success" | "failed" | "not_applicable"
   extractionFailureReason: string | null
   extractedText: string | null
   extractedCharCount: number | null

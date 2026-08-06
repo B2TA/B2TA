@@ -38,6 +38,70 @@ export type CanvasAssignmentPayload = {
   rubric?: CanvasCriterionPayload[]
 }
 
+type CanvasUserPayload = {
+  id: number
+  name: string
+  sortable_name?: string
+}
+
+type CanvasAttachmentPayload = {
+  id: number
+  filename: string
+  content_type?: string
+  size?: number
+  url: string
+}
+
+type CanvasSubmissionPayload = {
+  id?: number
+  user_id: number
+  workflow_state?: string
+  submission_type?: string
+  submitted_at?: string | null
+  attempt?: number | null
+  body?: string | null
+  attachments?: CanvasAttachmentPayload[]
+  submission_history?: Array<{ attempt?: number | null }>
+}
+
+export type CanvasSubmissionImport = {
+  studentDisplayName: string
+  externalStudentId: string
+  externalSubmissionId: string | null
+  identityStatus: "verified"
+  importStatus: "ready" | "missing" | "failed"
+  submissionType: "pdf" | "text" | "missing" | "unsupported"
+  attemptCount: number
+  submittedAt: string | null
+  originalFilename: string
+  extractionStatus: "pending" | "success" | "failed" | "not_applicable"
+  extractionFailureReason: string | null
+  extractedText: string | null
+  extractedCharCount: number | null
+  isOversized: boolean
+  artifact: {
+    data: Buffer
+    contentType: "application/pdf"
+    filename: string
+  } | null
+}
+
+const MAX_PDF_BYTES = 25 * 1024 * 1024
+
+function htmlToText(value: string): string {
+  return value
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .trim()
+}
+
 export class CanvasError extends Error {
   constructor(
     public readonly status: number,
@@ -175,6 +239,199 @@ export class CanvasAdapter {
     )
   }
 
+  async importSubmissions(
+    courseId: number,
+    assignmentId: number,
+  ): Promise<CanvasSubmissionImport[]> {
+    const connection = this.#requireConnection()
+    const [users, submissions] = await Promise.all([
+      this.#requestAll<CanvasUserPayload>(
+        `${connection.baseUrl}/api/v1/courses/${courseId}/users?enrollment_type%5B%5D=student&enrollment_state%5B%5D=active&per_page=100`,
+        connection,
+      ),
+      this.#requestAll<CanvasSubmissionPayload>(
+        `${connection.baseUrl}/api/v1/courses/${courseId}/assignments/${assignmentId}/submissions?include%5B%5D=submission_history&per_page=100`,
+        connection,
+      ),
+    ])
+    const submissionByUser = new Map(
+      submissions
+        .filter((submission) => typeof submission.user_id === "number")
+        .map((submission) => [submission.user_id, submission]),
+    )
+    const roster = users
+      .filter(
+        (user) => typeof user.id === "number" && typeof user.name === "string",
+      )
+      .sort((a, b) =>
+        (a.sortable_name ?? a.name).localeCompare(b.sortable_name ?? b.name),
+      )
+
+    const imported: CanvasSubmissionImport[] = []
+    for (const user of roster) {
+      imported.push(
+        await this.#normalizeSubmission(
+          user,
+          submissionByUser.get(user.id),
+          connection,
+        ),
+      )
+    }
+    return imported
+  }
+
+  async #normalizeSubmission(
+    user: CanvasUserPayload,
+    submission: CanvasSubmissionPayload | undefined,
+    connection: StoredCanvasConnection,
+  ): Promise<CanvasSubmissionImport> {
+    const attemptCount = Math.max(
+      submission?.attempt ?? 0,
+      ...(submission?.submission_history ?? []).map(
+        (attempt) => attempt.attempt ?? 0,
+      ),
+    )
+    const base = {
+      studentDisplayName: user.name,
+      externalStudentId: String(user.id),
+      externalSubmissionId:
+        typeof submission?.id === "number" ? String(submission.id) : null,
+      identityStatus: "verified" as const,
+      attemptCount,
+      submittedAt: submission?.submitted_at ?? null,
+      isOversized: false,
+    }
+    if (
+      !submission ||
+      submission.workflow_state === "unsubmitted" ||
+      !submission.submitted_at
+    ) {
+      return {
+        ...base,
+        importStatus: "missing",
+        submissionType: "missing",
+        originalFilename: "",
+        extractionStatus: "not_applicable",
+        extractionFailureReason: null,
+        extractedText: null,
+        extractedCharCount: null,
+        artifact: null,
+      }
+    }
+
+    if (submission.submission_type === "online_text_entry" && submission.body) {
+      const extractedText = htmlToText(submission.body)
+      return {
+        ...base,
+        importStatus: "ready",
+        submissionType: "text",
+        originalFilename: "Canvas text entry",
+        extractionStatus: "success",
+        extractionFailureReason: null,
+        extractedText,
+        extractedCharCount: extractedText.length,
+        artifact: null,
+      }
+    }
+
+    const attachment = submission.attachments?.find(
+      (item) =>
+        item.content_type === "application/pdf" ||
+        item.filename.toLowerCase().endsWith(".pdf"),
+    )
+    if (!attachment) {
+      return {
+        ...base,
+        importStatus: "failed",
+        submissionType: "unsupported",
+        originalFilename: submission.attachments?.[0]?.filename ?? "",
+        extractionStatus: "failed",
+        extractionFailureReason: "unsupported_submission_type",
+        extractedText: null,
+        extractedCharCount: null,
+        artifact: null,
+      }
+    }
+    if ((attachment.size ?? 0) > MAX_PDF_BYTES) {
+      return {
+        ...base,
+        importStatus: "failed",
+        submissionType: "pdf",
+        originalFilename: attachment.filename,
+        extractionStatus: "failed",
+        extractionFailureReason: "file_too_large",
+        extractedText: null,
+        extractedCharCount: null,
+        isOversized: true,
+        artifact: null,
+      }
+    }
+
+    try {
+      if (new URL(attachment.url).origin !== connection.baseUrl) {
+        throw new CanvasError(
+          502,
+          "invalid_canvas_response",
+          "Canvas returned an unsafe attachment URL",
+        )
+      }
+      const response = await this.#fetch(attachment.url, connection.accessToken)
+      const data = Buffer.from(await response.arrayBuffer())
+      if (data.length > MAX_PDF_BYTES) {
+        return {
+          ...base,
+          importStatus: "failed",
+          submissionType: "pdf",
+          originalFilename: attachment.filename,
+          extractionStatus: "failed",
+          extractionFailureReason: "file_too_large",
+          extractedText: null,
+          extractedCharCount: null,
+          isOversized: true,
+          artifact: null,
+        }
+      }
+      if (
+        response.headers.get("content-type")?.split(";", 1)[0] !==
+          "application/pdf" ||
+        !data.subarray(0, 5).equals(Buffer.from("%PDF-"))
+      ) {
+        throw new CanvasError(
+          502,
+          "invalid_canvas_response",
+          "Canvas returned an invalid PDF attachment",
+        )
+      }
+      return {
+        ...base,
+        importStatus: "ready",
+        submissionType: "pdf",
+        originalFilename: attachment.filename,
+        extractionStatus: "pending",
+        extractionFailureReason: null,
+        extractedText: null,
+        extractedCharCount: null,
+        artifact: {
+          data,
+          contentType: "application/pdf",
+          filename: attachment.filename,
+        },
+      }
+    } catch {
+      return {
+        ...base,
+        importStatus: "failed",
+        submissionType: "pdf",
+        originalFilename: attachment.filename,
+        extractionStatus: "failed",
+        extractionFailureReason: "attachment_download_failed",
+        extractedText: null,
+        extractedCharCount: null,
+        artifact: null,
+      }
+    }
+  }
+
   #requireConnection() {
     if (!this.#connection) {
       throw new CanvasError(
@@ -212,6 +469,13 @@ export class CanvasAdapter {
         )
       }
       url = next
+    }
+    if (url) {
+      throw new CanvasError(
+        502,
+        "canvas_pagination_limit",
+        "Canvas returned too many result pages",
+      )
     }
     return results
   }

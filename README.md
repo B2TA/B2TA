@@ -78,7 +78,7 @@ access.
 |---|---|
 | Frontend | React 19, Vite 8, Tailwind CSS v4 — Amplify Hosting |
 | Backend | Express 5 and TypeScript — one monolithic process |
-| Current state | In-memory store for sessions, rubrics, and submission lists |
+| Current state | In-memory store for sessions, rubrics, submission batches, and PDF artifacts |
 | Planned modules | Persistence, file ingestion, AI assistance, and LMS adapters |
 | LMS integration | Provider-neutral adapter boundary; Canvas first |
 
@@ -90,11 +90,12 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the system and integration boundari
 |---|---|
 | Session dashboard | Active routed frontend with real API-backed list, create, resume, and delete flows |
 | High-fidelity marking prototype | Retained in `src/App.tsx` as a fixture-backed design reference |
-| Backend monolith | Express API scaffold with health, session, rubric, and submission-list endpoints |
+| Backend monolith | Express API with sessions, rubrics, Canvas submission batches, and protected PDF delivery |
 | Backend persistence | Not implemented; current state is local and in memory |
 | Canvas API feasibility | Verified against the hackathon Canvas instance |
 | Canvas connection | Personal access token validation, course/assignment selection, and rubric import implemented |
-| Canvas submissions and grade publication | Not implemented |
+| Canvas submissions | Roster, attempts, text entries, missing work, and PDF import implemented |
+| Canvas grade publication | Not implemented |
 | End-to-end production workflow | In progress |
 
 `src/main.tsx` mounts the routed standalone application. Marking and review routes remain
