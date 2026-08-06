@@ -266,8 +266,6 @@ Trust: `ecs-tasks.amazonaws.com`
 
 Permissions:
 - `ecr:GetAuthorizationToken`, `ecr:BatchGetImage` (pull container image)
-- `logs:CreateLogStream`, `logs:PutLogEvents` (CloudWatch logging)
-- `secretsmanager:GetSecretValue` (RDS credentials, Cognito client secret)
 
 #### API Service Task Role (`grading-api-task-role`)
 

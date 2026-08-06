@@ -46,3 +46,9 @@ html, body, #root {
 .sidebar-card:hover {
   box-shadow: 0 2px 10px rgba(0,0,0,0.08);
 }
+
+/* Keyboard focus indicators: 3:1 minimum contrast ring (Requirement 17.12) */
+:focus-visible {
+  outline: 2px solid #475569; /* slate-600 — 4.6:1 on white, 3.5:1 on slate-50 */
+  outline-offset: 2px;
+}

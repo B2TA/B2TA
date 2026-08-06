@@ -27,7 +27,7 @@ Parameters:
   DBMasterPassword:
     Type: String
     NoEcho: true
-    Description: Master password for RDS (use Secrets Manager in production)
+    Description: Master password for RDS
     MinLength: 8
 
 Resources:

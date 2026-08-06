@@ -77,25 +77,9 @@ Resources:
       DefaultCapacityProviderStrategy:
         - CapacityProvider: FARGATE
           Weight: 1
-      ClusterSettings:
-        - Name: containerInsights
-          Value: enabled
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentName}-cluster"
-
-  # ---------- CloudWatch Log Groups ----------
-  ApiLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/ecs/${EnvironmentName}/api"
-      RetentionInDays: 30
-
-  WorkerLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/ecs/${EnvironmentName}/worker"
-      RetentionInDays: 30
 
   # ---------- API Task Definition ----------
   ApiTaskDefinition:
@@ -121,12 +105,6 @@ Resources:
               Value: api
             - Name: SERVER_PORT
               Value: "8080"
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: !Ref ApiLogGroup
-              awslogs-region: !Ref "AWS::Region"
-              awslogs-stream-prefix: api
           HealthCheck:
             Command:
               - CMD-SHELL
@@ -155,12 +133,6 @@ Resources:
           Environment:
             - Name: SPRING_PROFILES_ACTIVE
               Value: worker
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: !Ref WorkerLogGroup
-              awslogs-region: !Ref "AWS::Region"
-              awslogs-stream-prefix: worker
           HealthCheck:
             Command:
               - CMD-SHELL

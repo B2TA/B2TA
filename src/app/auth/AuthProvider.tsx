@@ -19,16 +19,13 @@ import {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { setTokenProvider, setUnauthorizedHandler } from "./authSession";
+import { cognitoConfigured, amplifyAuthConfig } from "./amplifyConfig";
 import { getMe } from "../api/endpoints";
 import { ApiError } from "../api/client";
+import { DEMO_MODE } from "../api/mock";
 import type { Me } from "../types";
 
-/** Cognito settings, injected at build time. Absent means dev mode. */
-const COGNITO_USER_POOL_ID = import.meta.env.VITE_COGNITO_USER_POOL_ID ?? "";
-const COGNITO_CLIENT_ID = import.meta.env.VITE_COGNITO_CLIENT_ID ?? "";
-
-export const cognitoConfigured =
-  COGNITO_USER_POOL_ID.length > 0 && COGNITO_CLIENT_ID.length > 0;
+export { cognitoConfigured };
 
 interface AuthContextValue {
   /** Null until the API confirms the credentials by answering `/api/me`. */
@@ -41,6 +38,7 @@ interface AuthContextValue {
   /** Re-checks credentials after the user resolves a re-auth prompt. */
   refresh: () => Promise<void>;
   usesCognito: boolean;
+  isDemoMode: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -69,14 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     if (!amplifyRef.current) {
       const { Amplify } = await import("aws-amplify");
-      Amplify.configure({
-        Auth: {
-          Cognito: {
-            userPoolId: COGNITO_USER_POOL_ID,
-            userPoolClientId: COGNITO_CLIENT_ID,
-          },
-        },
-      });
+      Amplify.configure(amplifyAuthConfig);
       amplifyRef.current = await import("aws-amplify/auth");
     }
     return amplifyRef.current;
@@ -102,6 +93,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const verify = useCallback(async () => {
+    // In demo mode, don't auto-sign-in on page load — wait for the user to click "Enter Demo".
+    if (DEMO_MODE) {
+      setMe(null);
+      setStatus("signed-out");
+      return;
+    }
     try {
       const identity = await getMe();
       setMe(identity);
@@ -126,6 +123,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(
     async (email: string, password: string) => {
+      // In demo mode, skip all auth and just load the fake user from the mock API.
+      if (DEMO_MODE) {
+        const identity = await getMe();
+        setMe(identity);
+        setStatus("signed-in");
+        setReauthRequired(false);
+        return;
+      }
       const auth = await loadAmplify();
       if (!auth) {
         // Dev mode: the API accepts the email header, so there is nothing to authenticate against.
@@ -166,6 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       refresh: verify,
       usesCognito: cognitoConfigured,
+      isDemoMode: DEMO_MODE,
     }),
     [me, status, reauthRequired, signIn, signOut, verify]
   );

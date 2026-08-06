@@ -22,6 +22,7 @@ import type {
   SaveRubricRequest,
   Session,
   Submission,
+  UploadUrl,
 } from "../types";
 
 // --- Identity ---
@@ -52,6 +53,12 @@ export const saveRubric = (sessionId: string, body: SaveRubricRequest) =>
 export const exportRubric = (sessionId: string) =>
   api.post<ExportResult>(`/sessions/${sessionId}/rubric/export`);
 
+export const getRubricUploadUrl = (sessionId: string, filename: string) =>
+  api.post<UploadUrl>(`/sessions/${sessionId}/rubric/upload-url`, { filename });
+
+export const parseRubric = (sessionId: string, objectKey: string) =>
+  api.post<JobCreated>(`/sessions/${sessionId}/rubric/parse`, { objectKey });
+
 // --- Submissions ---
 
 export const listSubmissions = (sessionId: string) =>
@@ -68,6 +75,14 @@ export const updateSubmissionIdentity = (
 
 export const confirmSubmissionIdentities = (sessionId: string) =>
   api.post<Submission[]>(`/sessions/${sessionId}/submissions/confirm`);
+
+export const getSubmissionUploadUrls = (sessionId: string, filenames: string[]) =>
+  api.post<{ uploads: UploadUrl[] }>(`/sessions/${sessionId}/submissions/upload-urls`, {
+    filenames,
+  });
+
+export const ingestSubmissions = (sessionId: string, objectKeys: string[]) =>
+  api.post<JobCreated>(`/sessions/${sessionId}/submissions/ingest`, { objectKeys });
 
 // --- Grading ---
 

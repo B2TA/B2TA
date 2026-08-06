@@ -142,6 +142,23 @@ export function useUpdateIdentity(sessionId: string) {
   });
 }
 
+export function useConfirmIdentities(sessionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => endpoints.confirmSubmissionIdentities(sessionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.submissions(sessionId) });
+    },
+  });
+}
+
+export function useExportRubric(sessionId: string) {
+  return useMutation({
+    mutationFn: () => endpoints.exportRubric(sessionId),
+    retry: false,
+  });
+}
+
 // --- Grading ---
 
 export function useGradingRecord(

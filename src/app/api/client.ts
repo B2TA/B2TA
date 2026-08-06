@@ -9,6 +9,7 @@
 
 import type { ApiErrorBody } from "../types";
 import { devModeEmail, getAccessToken, notifyUnauthorized } from "../auth/authSession";
+import { DEMO_MODE, handleMockRequest } from "./mock";
 
 /**
  * Relative by default so requests are same-origin: in development the Vite proxy forwards `/api`,
@@ -54,6 +55,12 @@ interface RequestOptions {
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = "GET", body, timeoutMs = REQUEST_TIMEOUT_MS, signal } = options;
+
+  // In demo mode, route all requests through the mock handler instead of making real HTTP calls.
+  if (DEMO_MODE) {
+    const result = await handleMockRequest(method, path, body);
+    return result as T;
+  }
 
   const headers: Record<string, string> = { Accept: "application/json" };
   if (body !== undefined) {

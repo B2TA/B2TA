@@ -25,6 +25,17 @@ export default function SessionListPage() {
     navigate(`/sessions/${created.id}/setup`);
   };
 
+  /** Navigate based on session state: sessions with confirmed review go to mark, others to setup */
+  const getSessionLink = (session: { id: string; reviewConfirmedAt: string | null; submissionCount: number }) => {
+    if (session.reviewConfirmedAt) {
+      return `/sessions/${session.id}/review`;
+    }
+    if (session.submissionCount > 0) {
+      return `/sessions/${session.id}/mark`;
+    }
+    return `/sessions/${session.id}/setup`;
+  };
+
   return (
     <AppShell title="Grading sessions">
       <form onSubmit={handleCreate} className="mb-6 flex flex-wrap items-end gap-3">
@@ -46,7 +57,7 @@ export default function SessionListPage() {
           disabled={createSession.isPending || name.trim().length === 0}
           className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
-          {createSession.isPending ? "Creating..." : "Create session"}
+          {createSession.isPending ? "Creating..." : "New Session"}
         </button>
       </form>
 
@@ -72,26 +83,44 @@ export default function SessionListPage() {
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th scope="col" className="px-4 py-2">Name</th>
+                <th scope="col" className="px-4 py-2">Created</th>
                 <th scope="col" className="px-4 py-2">Submissions</th>
-                <th scope="col" className="px-4 py-2">Review</th>
+                <th scope="col" className="px-4 py-2">Status</th>
                 <th scope="col" className="px-4 py-2">Last updated</th>
                 <th scope="col" className="px-4 py-2 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {sessions.data.map((session) => (
-                <tr key={session.id}>
+                <tr
+                  key={session.id}
+                  className="cursor-pointer hover:bg-slate-50"
+                  onClick={() => navigate(getSessionLink(session))}
+                >
                   <td className="px-4 py-3 font-medium text-slate-900">{session.name}</td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {new Date(session.createdAt).toLocaleDateString()}
+                  </td>
                   <td className="px-4 py-3 text-slate-600">{session.submissionCount}</td>
                   <td className="px-4 py-3 text-slate-600">
-                    {session.reviewConfirmedAt
-                      ? `Confirmed ${new Date(session.reviewConfirmedAt).toLocaleString()}`
-                      : "Not confirmed"}
+                    {session.reviewConfirmedAt ? (
+                      <span className="inline-flex items-center rounded border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800">
+                        Review confirmed
+                      </span>
+                    ) : session.submissionCount > 0 ? (
+                      <span className="inline-flex items-center rounded border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-800">
+                        Marking
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded border border-slate-300 bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                        Setup
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-slate-600">
-                    {new Date(session.updatedAt).toLocaleString()}
+                    {new Date(session.updatedAt).toLocaleDateString()}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex flex-wrap items-center justify-end gap-2">
                       <Link
                         to={`/sessions/${session.id}/setup`}
