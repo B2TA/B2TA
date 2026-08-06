@@ -6,6 +6,7 @@ Small Express/TypeScript backend for the standalone B2TA frontend.
 
 ```bash
 pnpm install
+cp .env.example .env
 pnpm dev
 ```
 
