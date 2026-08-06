@@ -49,27 +49,27 @@ Backend work is split into two parallel tracks:
 - [~] 2. Checkpoint - Ensure project compiles and infrastructure plan is reviewable
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 3. Backend Team A — Core Data Layer and Session Management
-  - [~] 3.1 Implement `SessionService` and `SessionController` (CRUD)
+- [x] 3. Backend Team A — Core Data Layer and Session Management
+  - [x] 3.1 Implement `SessionService` and `SessionController` (CRUD)
     - POST/GET/DELETE `/api/sessions` endpoints
     - Enforce TA ownership on all queries (tenant isolation)
     - Store/retrieve grading sessions with created/updated timestamps
     - _Requirements: 14.8, 14.9, 18.5, 19.6_
 
-  - [~] 3.2 Implement `RubricController` and rubric CRUD endpoints
+  - [x] 3.2 Implement `RubricController` and rubric CRUD endpoints
     - GET/PUT `/api/sessions/{id}/rubric` for loading and saving rubrics
     - Validate criterion count (1-30), title length (1-200), max points (0.01-1000), level count (1-10)
     - Assign unique display colors from palette (30+ colors, 3:1 contrast ratio)
     - _Requirements: 1.4, 1.5, 1.6, 2.1-4, 2.6-10_
 
-  - [~] 3.3 Implement `UploadService` with pre-signed S3 URL generation
+  - [x] 3.3 Implement `UploadService` with pre-signed S3 URL generation
     - POST `/api/sessions/{id}/rubric/upload-url` — single object key, 15-min TTL
     - POST `/api/sessions/{id}/submissions/upload-urls` — batch URLs (1-300 files)
     - Scope all URLs to TA's S3 prefix: `uploads/{ta_id}/{session_id}/...`
     - Validate file extensions and sizes before issuing URLs
     - _Requirements: 1.2, 1.3, 1.9, 4.2, 4.3, 4.13, 4.14, 18.6_
 
-  - [~] 3.4 Implement `RubricParseHandler` in Worker service
+  - [x] 3.4 Implement `RubricParseHandler` in Worker service
     - Parse PDF rubrics (extract text, identify table structure, map rows to criteria)
     - Parse CSV rubrics (header row = level labels, data rows = criteria)
     - Parse XLSX rubrics (same logic as CSV on first sheet)
@@ -83,27 +83,27 @@ Backend work is split into two parallel tracks:
     - **Property 2: Rubric Parse Idempotence**
     - **Validates: Requirements 3.3, 3.4, 3.5**
 
-  - [~] 3.6 Implement `RubricPrinter` (CSV serialization) and export endpoint
+  - [x] 3.6 Implement `RubricPrinter` (CSV serialization) and export endpoint
     - POST `/api/sessions/{id}/rubric/export` — serialize to CSV, upload to S3, return pre-signed download URL
     - RFC 4180 quoting for special characters (commas, quotes, line breaks, whitespace)
     - Validate rubric has ≥1 criterion before export
     - _Requirements: 3.1, 3.2, 3.5, 3.6, 3.7, 3.8_
 
-  - [~] 3.7 Implement `SubmissionController` and submission management endpoints
+  - [x] 3.7 Implement `SubmissionController` and submission management endpoints
     - GET `/api/sessions/{id}/submissions` — list with extraction status
     - PUT `/api/sessions/{id}/submissions/{subId}/identity` — update display name
     - POST `/api/sessions/{id}/submissions/confirm` — confirm identities
     - Enforce 150-submission batch limit
     - _Requirements: 5.5, 5.6, 5.9, 5.10, 5.11, 19.1, 19.2_
 
-  - [~] 3.8 Implement `SubmissionIngestHandler` in Worker service
+  - [x] 3.8 Implement `SubmissionIngestHandler` in Worker service
     - Expand ZIP archives (validate entries, reject path traversal, enforce 300-entry and 1GB limits)
     - Skip non-supported extensions in ZIPs, record in ingestion report
     - Track per-file progress for resumability (idempotency key: session_id + filename)
     - Update job progress for polling
     - _Requirements: 4.4, 4.7, 4.9, 4.10, 4.11, 4.16, 19.7_
 
-  - [~] 3.9 Implement `TextExtractor` for PDF, DOCX, TXT, MD formats
+  - [x] 3.9 Implement `TextExtractor` for PDF, DOCX, TXT, MD formats
     - Extract plain text with zero-based character offsets (start < end, ascending, non-overlapping)
     - 120-second timeout per file
     - Mark extraction-failed with appropriate reason (unreadable, password-protected, no text, timeout)
@@ -115,13 +115,13 @@ Backend work is split into two parallel tracks:
     - **Property 4: Student Identity Normalization**
     - **Validates: Requirements 4.5, 5.1, 5.2**
 
-  - [~] 3.11 Implement `RosterResolver` for student identity derivation
+  - [x] 3.11 Implement `RosterResolver` for student identity derivation
     - Parse Canvas filename convention (student name + late marker + numeric ID)
     - Fallback: filename stem with whitespace normalization (trim, collapse, truncate to 200)
     - Mark verified vs unverified identity status
     - _Requirements: 5.1, 5.2, 5.3_
 
-  - [~] 3.12 Implement `AsyncJob` tracking and polling endpoint
+  - [x] 3.12 Implement `AsyncJob` tracking and polling endpoint
     - GET `/api/jobs/{jobId}` — return status, progress_current, progress_total, failure_reason
     - POST endpoints that trigger async work return job ID immediately
     - SQS message publishing from API service

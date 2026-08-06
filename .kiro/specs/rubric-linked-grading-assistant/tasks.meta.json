@@ -98,6 +98,16 @@
         "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
         "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
         "timestamp": 1786044227156
+      },
+      {
+        "executionId": "9e504015-4bae-4a17-98f9-2fa83aeb0659",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786045254074
+      },
+      {
+        "executionId": "9e504015-4bae-4a17-98f9-2fa83aeb0659",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786045709420
       }
     ],
     "3.2 Implement `RubricController` and rubric CRUD endpoints": [
@@ -105,6 +115,16 @@
         "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
         "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
         "timestamp": 1786044227407
+      },
+      {
+        "executionId": "9e504015-4bae-4a17-98f9-2fa83aeb0659",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786045731850
+      },
+      {
+        "executionId": "9e504015-4bae-4a17-98f9-2fa83aeb0659",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786046178156
       }
     ],
     "3.3 Implement `UploadService` with pre-signed S3 URL generation": [
@@ -112,6 +132,16 @@
         "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
         "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
         "timestamp": 1786044227657
+      },
+      {
+        "executionId": "9e504015-4bae-4a17-98f9-2fa83aeb0659",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786045254836
+      },
+      {
+        "executionId": "9e504015-4bae-4a17-98f9-2fa83aeb0659",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786045710100
       }
     ],
     "3.4 Implement `RubricParseHandler` in Worker service": [
@@ -119,6 +149,16 @@
         "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
         "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
         "timestamp": 1786044227973
+      },
+      {
+        "executionId": "9e504015-4bae-4a17-98f9-2fa83aeb0659",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786046188146
+      },
+      {
+        "executionId": "9e504015-4bae-4a17-98f9-2fa83aeb0659",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786046814432
       }
     ],
     "3.6 Implement `RubricPrinter` (CSV serialization) and export endpoint": [
@@ -126,6 +166,16 @@
         "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
         "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
         "timestamp": 1786044228310
+      },
+      {
+        "executionId": "9e504015-4bae-4a17-98f9-2fa83aeb0659",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786046191584
+      },
+      {
+        "executionId": "9e504015-4bae-4a17-98f9-2fa83aeb0659",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786046812278
       }
     ],
     "3.7 Implement `SubmissionController` and submission management endpoints": [
@@ -133,6 +183,16 @@
         "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
         "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
         "timestamp": 1786044228596
+      },
+      {
+        "executionId": "9e504015-4bae-4a17-98f9-2fa83aeb0659",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786045732918
+      },
+      {
+        "executionId": "9e504015-4bae-4a17-98f9-2fa83aeb0659",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786046178912
       }
     ],
     "3.8 Implement `SubmissionIngestHandler` in Worker service": [
@@ -140,6 +200,16 @@
         "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
         "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
         "timestamp": 1786044228866
+      },
+      {
+        "executionId": "9e504015-4bae-4a17-98f9-2fa83aeb0659",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786045734149
+      },
+      {
+        "executionId": "9e504015-4bae-4a17-98f9-2fa83aeb0659",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786046179904
       }
     ],
     "3.9 Implement `TextExtractor` for PDF, DOCX, TXT, MD formats": [
@@ -147,6 +217,16 @@
         "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
         "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
         "timestamp": 1786044229104
+      },
+      {
+        "executionId": "9e504015-4bae-4a17-98f9-2fa83aeb0659",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786046189306
+      },
+      {
+        "executionId": "9e504015-4bae-4a17-98f9-2fa83aeb0659",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786046812870
       }
     ],
     "3.11 Implement `RosterResolver` for student identity derivation": [
@@ -154,6 +234,16 @@
         "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
         "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
         "timestamp": 1786044229367
+      },
+      {
+        "executionId": "9e504015-4bae-4a17-98f9-2fa83aeb0659",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786046190360
+      },
+      {
+        "executionId": "9e504015-4bae-4a17-98f9-2fa83aeb0659",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786046813585
       }
     ],
     "3.12 Implement `AsyncJob` tracking and polling endpoint": [
@@ -161,6 +251,16 @@
         "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
         "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
         "timestamp": 1786044229571
+      },
+      {
+        "executionId": "9e504015-4bae-4a17-98f9-2fa83aeb0659",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786045256960
+      },
+      {
+        "executionId": "9e504015-4bae-4a17-98f9-2fa83aeb0659",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786045710984
       }
     ],
     "4. Checkpoint - Core data layer and ingestion pipeline complete": [
@@ -392,6 +492,13 @@
         "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
         "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
         "timestamp": 1786044931158
+      }
+    ],
+    "3. Backend Team A — Core Data Layer and Session Management": [
+      {
+        "executionId": "9e504015-4bae-4a17-98f9-2fa83aeb0659",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786046814751
       }
     ]
   }
