@@ -402,15 +402,33 @@ export class CanvasAdapter {
           "Canvas returned an invalid PDF attachment",
         )
       }
+      const extraction = await extractPdfText(data)
+      if (extraction.status === "failed") {
+        return {
+          ...base,
+          importStatus: "failed",
+          submissionType: "pdf",
+          originalFilename: attachment.filename,
+          extractionStatus: "failed",
+          extractionFailureReason: extraction.reason,
+          extractedText: null,
+          extractedCharCount: null,
+          artifact: {
+            data,
+            contentType: "application/pdf",
+            filename: attachment.filename,
+          },
+        }
+      }
       return {
         ...base,
         importStatus: "ready",
         submissionType: "pdf",
         originalFilename: attachment.filename,
-        extractionStatus: "pending",
+        extractionStatus: "success",
         extractionFailureReason: null,
-        extractedText: null,
-        extractedCharCount: null,
+        extractedText: extraction.text,
+        extractedCharCount: extraction.charCount,
         artifact: {
           data,
           contentType: "application/pdf",
@@ -528,3 +546,4 @@ export class CanvasAdapter {
     return response
   }
 }
+import { extractPdfText } from "./pdf.js"

@@ -77,7 +77,7 @@ The backend stays monolithic while keeping clear internal ownership:
 | HTTP API | Request validation, response formatting, and frontend contract | Initial routes implemented |
 | Grading core | Sessions, rubrics, submissions, evidence, scores, feedback, and review | Sessions, rubrics, and Canvas submission batches started |
 | Persistence | Store and retrieve canonical state | In-memory implementation only |
-| File ingestion | Accept files and normalize their text | Canvas PDFs retained in memory for inline display; text entries normalized |
+| File ingestion | Accept files and normalize their text | Canvas PDFs retained for inline display and parsed for embedded text; scanned, encrypted, and unreadable files classified |
 | AI assistance | Suggest evidence and feedback without assigning scores | Not implemented |
 | LMS adapters | Import external data and publish reviewed results | Canvas PAT, rubric, roster, attempt, text-entry, and PDF import implemented |
 

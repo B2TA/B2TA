@@ -52,6 +52,32 @@ function summarizeSubmissions(
   }
 }
 
+function submissionDetail(submission: Submission): string {
+  if (submission.importStatus === "missing") return "Missing submission"
+  switch (submission.extractionFailureReason) {
+    case "no_extractable_text":
+      return "No selectable text · OCR needed"
+    case "password_protected":
+      return "Password-protected PDF · ask for an unlocked copy"
+    case "unreadable_file":
+      return "Unreadable PDF · ask for a new copy"
+    case "attachment_download_failed":
+      return "Canvas file download failed · retry import"
+    case "unsupported_submission_type":
+      return "Unsupported submission type"
+    case "file_too_large":
+      return "PDF is larger than the 25 MiB limit"
+  }
+  if (
+    submission.extractionStatus === "success" &&
+    submission.extractedCharCount !== null
+  ) {
+    return `${submission.extractedCharCount} characters ready for evidence matching`
+  }
+  if (submission.importStatus === "failed") return "Import failed"
+  return submission.originalFilename
+}
+
 function SubmissionBatchSummaryView({ summary, submissions }: SubmissionBatch) {
   return (
     <section
@@ -105,15 +131,13 @@ function SubmissionBatchSummaryView({ summary, submissions }: SubmissionBatch) {
             <div>
               <p className="font-semibold">{submission.studentDisplayName}</p>
               <p className="mt-1 text-xs text-slate-500">
-                {submission.importStatus === "missing"
-                  ? "Missing submission"
-                  : submission.importStatus === "failed"
-                    ? "Import failed"
-                    : submission.originalFilename}
-                {submission.attemptCount > 1
-                  ? ` · ${submission.attemptCount} attempts`
-                  : ""}
+                {submissionDetail(submission)}
               </p>
+              {submission.attemptCount > 1 ? (
+                <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-slate-400">
+                  {submission.attemptCount} attempts
+                </p>
+              ) : null}
             </div>
             {submission.artifactUrl ? (
               <a

@@ -47,10 +47,10 @@ const importedRubric = {
 
 const importedBatch = {
   summary: {
-    totalStudents: 3,
+    totalStudents: 5,
     imported: 1,
     missing: 1,
-    failed: 1,
+    failed: 3,
     multipleAttempts: 1,
   },
   submissions: [
@@ -68,10 +68,10 @@ const importedBatch = {
       attemptCount: 2,
       submittedAt: "2026-08-06T18:00:00Z",
       artifactUrl: "/api/sessions/session-1/submissions/submission-1/artifact",
-      extractionStatus: "pending",
+      extractionStatus: "success",
       extractionFailureReason: null,
-      extractedText: null,
-      extractedCharCount: null,
+      extractedText: "A precise thesis supported by course evidence.",
+      extractedCharCount: 46,
       isOversized: false,
       position: 0,
       createdAt: "2026-08-06T18:00:00Z",
@@ -79,7 +79,7 @@ const importedBatch = {
     {
       id: "submission-2",
       sessionId: "session-1",
-      storageKey: null,
+      storageKey: "memory://submission-3",
       originalFilename: "",
       studentDisplayName: "Blair Baker",
       externalStudentId: "13",
@@ -111,13 +111,57 @@ const importedBatch = {
       submissionType: "pdf",
       attemptCount: 1,
       submittedAt: "2026-08-06T20:00:00Z",
-      artifactUrl: null,
+      artifactUrl: "/api/sessions/session-1/submissions/submission-3/artifact",
       extractionStatus: "failed",
-      extractionFailureReason: "attachment_download_failed",
+      extractionFailureReason: "no_extractable_text",
       extractedText: null,
       extractedCharCount: null,
       isOversized: false,
       position: 2,
+      createdAt: "2026-08-06T18:00:00Z",
+    },
+    {
+      id: "submission-4",
+      sessionId: "session-1",
+      storageKey: "memory://submission-4",
+      originalFilename: "encrypted-hw1.pdf",
+      studentDisplayName: "Erin Evans",
+      externalStudentId: "16",
+      externalSubmissionId: "816",
+      identityStatus: "verified",
+      importStatus: "failed",
+      submissionType: "pdf",
+      attemptCount: 1,
+      submittedAt: "2026-08-06T20:00:00Z",
+      artifactUrl: "/api/sessions/session-1/submissions/submission-4/artifact",
+      extractionStatus: "failed",
+      extractionFailureReason: "password_protected",
+      extractedText: null,
+      extractedCharCount: null,
+      isOversized: false,
+      position: 3,
+      createdAt: "2026-08-06T18:00:00Z",
+    },
+    {
+      id: "submission-5",
+      sessionId: "session-1",
+      storageKey: "memory://submission-5",
+      originalFilename: "malformed-hw1.pdf",
+      studentDisplayName: "Frank Fox",
+      externalStudentId: "17",
+      externalSubmissionId: "817",
+      identityStatus: "verified",
+      importStatus: "failed",
+      submissionType: "pdf",
+      attemptCount: 1,
+      submittedAt: "2026-08-06T20:00:00Z",
+      artifactUrl: "/api/sessions/session-1/submissions/submission-5/artifact",
+      extractionStatus: "failed",
+      extractionFailureReason: "unreadable_file",
+      extractedText: null,
+      extractedCharCount: null,
+      isOversized: false,
+      position: 4,
       createdAt: "2026-08-06T18:00:00Z",
     },
   ],
@@ -219,15 +263,22 @@ test("TA connects Canvas and imports the assignment rubric", async () => {
   )
   expect(await screen.findByText("1 ready")).toBeVisible()
   expect(screen.getByText("1 missing")).toBeVisible()
-  expect(screen.getByText("1 failed")).toBeVisible()
+  expect(screen.getByText("3 failed")).toBeVisible()
   expect(screen.getByText("Alex Able")).toBeVisible()
   expect(screen.getByText(/2 attempts/)).toBeVisible()
-  expect(screen.getByRole("link", { name: "View PDF" })).toHaveAttribute(
+  expect(screen.getAllByRole("link", { name: "View PDF" })[0]).toHaveAttribute(
     "href",
     "/api/sessions/session-1/submissions/submission-1/artifact",
   )
   expect(screen.getByText("Blair Baker")).toBeVisible()
   expect(screen.getByText("Missing submission")).toBeVisible()
   expect(screen.getByText("Devon Diaz")).toBeVisible()
-  expect(screen.getByText("Import failed")).toBeVisible()
+  expect(screen.getByText("No selectable text · OCR needed")).toBeVisible()
+  expect(
+    screen.getByText("Password-protected PDF · ask for an unlocked copy"),
+  ).toBeVisible()
+  expect(screen.getByText("Unreadable PDF · ask for a new copy")).toBeVisible()
+  expect(
+    screen.getByText("46 characters ready for evidence matching"),
+  ).toBeVisible()
 })

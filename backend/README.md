@@ -32,9 +32,10 @@ requests to it during local development.
 | `POST` | `/api/sessions/:id/canvas/import` | Import the selected assignment rubric into a session |
 | `POST` | `/api/sessions/:id/canvas/submissions/import` | Import the selected assignment roster and submission batch |
 
-State, including imported PDF bytes, is intentionally in memory and resets when the
-process restarts. Canvas text entries and PDF uploads up to 25 MiB are supported; missing
-work and per-submission import failures remain visible without aborting the whole batch.
+State, including imported PDF bytes and normalized text, is intentionally in memory and
+resets when the process restarts. Canvas text entries and PDF uploads up to 25 MiB are
+supported. PDFs with embedded text are extracted in process; image-only, encrypted, and
+malformed PDFs receive actionable per-submission errors without aborting the whole batch.
 Persistent storage, broader file ingestion, AI analysis, and grade publication can be
 added behind the same monolith interfaces as later vertical slices.
 The current application is intentionally single-user and has no login.

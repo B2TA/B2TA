@@ -1,5 +1,33 @@
 import { createServer } from "node:http"
 
+function createTextPdf(text) {
+  const escapedText = text.replace(/([\\()])/g, "\\$1")
+  const stream = `BT\n/F1 14 Tf\n72 720 Td\n(${escapedText}) Tj\nET`
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    `<< /Length ${Buffer.byteLength(stream, "latin1")} >>\nstream\n${stream}\nendstream`,
+  ]
+  let content = "%PDF-1.4\n"
+  const offsets = [0]
+  objects.forEach((object, index) => {
+    offsets.push(Buffer.byteLength(content, "latin1"))
+    content += `${index + 1} 0 obj\n${object}\nendobj\n`
+  })
+  const xrefOffset = Buffer.byteLength(content, "latin1")
+  content += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`
+  content += offsets
+    .slice(1)
+    .map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`)
+    .join("")
+  content += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`
+  return Buffer.from(content, "latin1")
+}
+
+const submissionPdf = createTextPdf("HW1 machine-readable submission.")
+
 const assignment = {
   id: 99,
   course_id: 42,
@@ -41,7 +69,7 @@ const server = createServer((request, response) => {
   const path = new URL(request.url ?? "/", "http://canvas.test").pathname
   if (path === "/files/501/download") {
     response.setHeader("Content-Type", "application/pdf")
-    response.end(Buffer.from("%PDF-1.4\nHW1 submission\n%%EOF"))
+    response.end(submissionPdf)
     return
   }
 
@@ -76,7 +104,7 @@ const server = createServer((request, response) => {
               id: 501,
               filename: "alex-hw1.pdf",
               content_type: "application/pdf",
-              size: 31,
+              size: submissionPdf.length,
               url: "http://127.0.0.1:3002/files/501/download",
             },
           ],

@@ -30,6 +30,9 @@ test("TA imports a Canvas rubric, roster, and PDF submission batch", async ({
   await expect(page.getByText("1 ready")).toBeVisible()
   await expect(page.getByText("1 missing")).toBeVisible()
   await expect(page.getByText("Alex Able")).toBeVisible()
+  await expect(
+    page.getByText("32 characters ready for evidence matching"),
+  ).toBeVisible()
   const pdfUrl = await page
     .getByRole("link", { name: "View PDF" })
     .getAttribute("href")

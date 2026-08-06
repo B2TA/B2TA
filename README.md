@@ -94,7 +94,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the system and integration boundari
 | Backend persistence | Not implemented; current state is local and in memory |
 | Canvas API feasibility | Verified against the hackathon Canvas instance |
 | Canvas connection | Personal access token validation, course/assignment selection, and rubric import implemented |
-| Canvas submissions | Roster, attempts, text entries, missing work, and PDF import implemented |
+| Canvas submissions | Roster, attempts, text entries, missing work, PDF display, and embedded-text extraction implemented |
 | Canvas grade publication | Not implemented |
 | End-to-end production workflow | In progress |
 
