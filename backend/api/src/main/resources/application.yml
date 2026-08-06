@@ -62,3 +62,11 @@ canvas:
   course-id: ${CANVAS_COURSE_ID:1}
   per-page: 100
 
+# Bedrock rubric analysis
+# The us. inference-profile prefix is required — bare anthropic.* ids fail at
+# invoke time. Raise the model once the account is granted a newer one.
+analyze:
+  enabled: ${ANALYZE_ENABLED:true}
+  model-id: ${BEDROCK_MODEL_ID:us.anthropic.claude-sonnet-4-5-20250929-v1:0}
+  max-tokens: 8000
+  max-retries: 2
