@@ -49,3 +49,16 @@ aws:
   cognito:
     user-pool-id: ${COGNITO_USER_POOL_ID:}
     region: ${COGNITO_REGION:${aws.region}}
+
+# Canvas LMS Integration
+# Defaults to fixtures so a checkout runs without a Canvas token. Set
+# CANVAS_DATA_SOURCE=canvas only once the live instance is confirmed healthy —
+# never let a disconnected demo silently serve fixture data as if it were live.
+canvas:
+  data-source: ${CANVAS_DATA_SOURCE:fixtures}
+  base-url: ${CANVAS_BASE_URL:}
+  secret-id: ${CANVAS_SECRET_ID:b2ta/canvas}
+  fixtures-path: ${CANVAS_FIXTURES_PATH:fixtures}
+  course-id: ${CANVAS_COURSE_ID:1}
+  per-page: 100
+

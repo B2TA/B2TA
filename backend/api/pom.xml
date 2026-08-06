@@ -81,6 +81,12 @@
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>bedrockruntime</artifactId>
         </dependency>
+        <!-- Canvas API token is read from Secrets Manager, never sent to the browser -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>secretsmanager</artifactId>
+        </dependency>
+
 
         <!-- Spring Security Test -->
         <dependency>
