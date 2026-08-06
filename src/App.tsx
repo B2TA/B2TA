@@ -1,239 +1,16 @@
-import { useState, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ApiError, syncToCanvas } from './canvas/api'
+import { useCanvasData } from './canvas/useCanvasData'
+import type { Criterion, HSpan, Paragraph } from './canvas/types'
 
-// ── Criterion config ───────────────────────────────────────────────────────
+/** The single assignment this deployment grades. */
+const ASSIGNMENT_ID = import.meta.env.VITE_CANVAS_ASSIGNMENT_ID ?? '1'
 
-const CRITERIA = [
-  {
-    id: 'thesis',
-    label: 'Thesis Clarity',
-    color: '#D97706',
-    bg: 'rgba(245,158,11,0.14)',
-    border: '#D97706',
-    maxPts: 5,
-    description: 'Central argument is clearly stated, arguable, and appears early in the essay.',
-    levels: [
-      { pts: 5, label: 'Exemplary', desc: 'Thesis is precise, arguable, and elegantly positioned.' },
-      { pts: 4, label: 'Proficient', desc: 'Thesis is clear and arguable with minor ambiguity.' },
-      { pts: 3, label: 'Developing', desc: 'Thesis present but broad or partially unclear.' },
-      { pts: 2, label: 'Beginning', desc: 'Thesis implied but not directly stated.' },
-      { pts: 1, label: 'Insufficient', desc: 'No identifiable thesis.' },
-    ],
-  },
-  {
-    id: 'evidence',
-    label: 'Use of Evidence',
-    color: '#0D9488',
-    bg: 'rgba(13,148,136,0.12)',
-    border: '#0D9488',
-    maxPts: 5,
-    description: 'Integrates at least 3 cited sources; quotations and paraphrases directly support claims.',
-    levels: [
-      { pts: 5, label: 'Exemplary', desc: 'Evidence is varied, well-integrated, and thoroughly analyzed.' },
-      { pts: 4, label: 'Proficient', desc: 'Evidence supports claims; minor integration issues.' },
-      { pts: 3, label: 'Developing', desc: 'Evidence present but thin or under-analyzed.' },
-      { pts: 2, label: 'Beginning', desc: 'Minimal sources; evidence often dropped in without context.' },
-      { pts: 1, label: 'Insufficient', desc: 'Little to no evidence cited.' },
-    ],
-  },
-  {
-    id: 'organization',
-    label: 'Organization',
-    color: '#7C3AED',
-    bg: 'rgba(124,58,237,0.11)',
-    border: '#7C3AED',
-    maxPts: 5,
-    description: 'Logical paragraph structure with clear transitions linking ideas across sections.',
-    levels: [
-      { pts: 5, label: 'Exemplary', desc: 'Seamless flow; every transition serves the argument.' },
-      { pts: 4, label: 'Proficient', desc: 'Well-organized; occasional abrupt transitions.' },
-      { pts: 3, label: 'Developing', desc: 'Basic structure present but transitions weak.' },
-      { pts: 2, label: 'Beginning', desc: 'Sections feel disjointed; logic hard to follow.' },
-      { pts: 1, label: 'Insufficient', desc: 'No discernible organizational logic.' },
-    ],
-  },
-  {
-    id: 'grammar',
-    label: 'Grammar & Mechanics',
-    color: '#DC2626',
-    bg: 'rgba(220,38,38,0.10)',
-    border: '#DC2626',
-    maxPts: 3,
-    description: 'Minimal errors in grammar, punctuation, and sentence structure throughout.',
-    levels: [
-      { pts: 3, label: 'Proficient', desc: 'Virtually error-free; prose is polished.' },
-      { pts: 2, label: 'Developing', desc: 'A few noticeable errors that don\'t impede reading.' },
-      { pts: 1, label: 'Beginning', desc: 'Frequent errors that impede comprehension.' },
-    ],
-  },
-  {
-    id: 'citations',
-    label: 'Citation Format',
-    color: '#0374B5',
-    bg: 'rgba(3,116,181,0.11)',
-    border: '#0374B5',
-    maxPts: 2,
-    description: 'All in-text citations and bibliography entries follow MLA or APA format consistently.',
-    levels: [
-      { pts: 2, label: 'Proficient', desc: 'Consistent, correct citation format throughout.' },
-      { pts: 1, label: 'Developing', desc: 'Minor citation errors or inconsistencies.' },
-      { pts: 0, label: 'Insufficient', desc: 'Missing citations or wrong format.' },
-    ],
-  },
-]
-
-// ── Highlighted spans in the essay ────────────────────────────────────────
-
-interface HSpan {
-  id: string
-  criterionId: string
-  text: string
-  confirmed: boolean // true = TA confirmed, false = AI-suggested
-  tooltip: string
-  paragraphIdx: number
-  offsetInParagraph: number // character offset (used to order margin flags)
-}
-
-const ESSAY_PARAGRAPHS = [
-  {
-    idx: 0,
-    label: null,
-    text: 'Essay 3: Argumentative Analysis',
-    isTitle: true,
-  },
-  {
-    idx: 1,
-    label: '¶1',
-    text: 'The question of whether social media platforms bear moral responsibility for political polarization has moved from academic seminars into courtrooms and congressional hearings. I will argue that platforms are not neutral conduits but active architects of epistemic bubbles, and that this architectural complicity carries genuine moral weight. This essay examines the amplification algorithm, the advertising incentive structure, and the suppression of cross-cutting exposure to substantiate that claim.',
-    isTitle: false,
-  },
-  {
-    idx: 2,
-    label: '¶2',
-    text: 'To understand how platforms shape belief, one must first acknowledge the design intent embedded in recommendation systems. According to Pariser (2011), the "filter bubble" emerges not from user choice alone but from algorithmic curation that optimizes for engagement over exposure diversity. Studies show that users who receive algorithmically curated feeds are 40% more likely to share partisan content than users on reverse-chronological feeds (Bail et al., 2018, p. 9024). This evidence suggests that the architecture, not merely the audience, is causally implicated.',
-    isTitle: false,
-  },
-  {
-    idx: 3,
-    label: '¶3',
-    text: 'Critics of this view argue that users bear primary responsibility for their own information diet. However, this critique underestimates the asymmetry of expertise between platform engineers and ordinary users. Furthermore, internal documents released in the 2021 Facebook Papers reveal that company researchers were aware polarization metrics rose with engagement optimization, yet the feature remained live. The limitation of the "user choice" framework is that it treats an unequal relationship as symmetrical.',
-    isTitle: false,
-  },
-  {
-    idx: 4,
-    label: '¶4',
-    text: 'The advertising model compounds the problem. Platforms generate revenue proportional to time-on-site, and outrage reliably extends sessions. Therefore, any financial incentive for platforms runs counter to the depolarization interventions researchers propose. This structural conflict of interest distinguishes platform complicity from the more passive negligence of, say, a telephone company whose infrastructure happens to carry inflammatory speech.',
-    isTitle: false,
-  },
-  {
-    idx: 5,
-    label: '¶5',
-    text: 'In conclusion, the architecture of engagement-maximizing platforms is not value-neutral. First, it systematically narrows the epistemic range of users. Finally, it sustains itself through financial incentives that are structurally opposed to reform. Assigning moral responsibility to platforms is therefore not a category error but an accurate description of causal agency. The path forward requires treating platform design as a site of democratic accountability, not merely a market matter.',
-    isTitle: false,
-  },
-]
-
-// Precomputed highlight spans — offsets reference character position in the paragraph text
-const HIGHLIGHT_SPANS: HSpan[] = [
-  {
-    id: 'h1',
-    criterionId: 'thesis',
-    text: 'I will argue that platforms are not neutral conduits but active architects of epistemic bubbles, and that this architectural complicity carries genuine moral weight.',
-    confirmed: true,
-    tooltip: 'Thesis Clarity — explicit arguable claim with clear scope.',
-    paragraphIdx: 1,
-    offsetInParagraph: 120,
-  },
-  {
-    id: 'h2',
-    criterionId: 'evidence',
-    text: 'According to Pariser (2011), the "filter bubble" emerges not from user choice alone but from algorithmic curation that optimizes for engagement over exposure diversity.',
-    confirmed: true,
-    tooltip: 'Use of Evidence — named source with integrated analysis.',
-    paragraphIdx: 2,
-    offsetInParagraph: 96,
-  },
-  {
-    id: 'h3',
-    criterionId: 'evidence',
-    text: 'Studies show that users who receive algorithmically curated feeds are 40% more likely to share partisan content than users on reverse-chronological feeds (Bail et al., 2018, p. 9024).',
-    confirmed: true,
-    tooltip: 'Use of Evidence — quantitative citation, full page reference.',
-    paragraphIdx: 2,
-    offsetInParagraph: 267,
-  },
-  {
-    id: 'h4',
-    criterionId: 'organization',
-    text: 'However, this critique underestimates the asymmetry of expertise between platform engineers and ordinary users. Furthermore, internal documents released in the 2021 Facebook Papers',
-    confirmed: false,
-    tooltip: 'Organization — transition from counter-argument back to main claim. Confirm if intentional.',
-    paragraphIdx: 3,
-    offsetInParagraph: 85,
-  },
-  {
-    id: 'h5',
-    criterionId: 'citations',
-    text: '(Bail et al., 2018, p. 9024)',
-    confirmed: false,
-    tooltip: 'Citation Format — APA in-text. Check bibliography entry.',
-    paragraphIdx: 2,
-    offsetInParagraph: 426,
-  },
-  {
-    id: 'h6',
-    criterionId: 'organization',
-    text: 'Therefore, any financial incentive for platforms runs counter to the depolarization interventions researchers propose.',
-    confirmed: true,
-    tooltip: 'Organization — "Therefore" signals logical consequence; bridges ¶3 premise to ¶4 conclusion.',
-    paragraphIdx: 4,
-    offsetInParagraph: 122,
-  },
-  {
-    id: 'h7',
-    criterionId: 'thesis',
-    text: 'Assigning moral responsibility to platforms is therefore not a category error but an accurate description of causal agency.',
-    confirmed: false,
-    tooltip: 'Thesis Clarity — restatement in conclusion. AI-flagged as possible thesis echo.',
-    paragraphIdx: 5,
-    offsetInParagraph: 220,
-  },
-]
-
-// ── AI comment suggestions per criterion ──────────────────────────────────
-
-const AI_COMMENTS: Record<string, Record<string, string>> = {
-  thesis: {
-    Exemplary: 'Your thesis is precise and elegantly positioned — the framing of platforms as "architects" rather than mere hosts is particularly effective.',
-    Proficient: 'The thesis is clear and arguable. Consider sharpening the scope in the final sentence of ¶1 to avoid overpromising.',
-    Developing: 'Your thesis emerges but remains somewhat broad. Try distilling it to a single claim before your first body paragraph.',
-    Beginning: 'A thesis is implied but not explicitly stated. Readers need a direct, arguable claim early in the introduction.',
-    Insufficient: 'No clear thesis was identifiable. Please revise to include a direct, arguable claim.',
-  },
-  evidence: {
-    Exemplary: 'Evidence is varied and thoroughly integrated — the Bail et al. statistic is especially well deployed.',
-    Proficient: 'Sources support your claims well. Make sure every quotation is followed by your own analysis (the "so what").',
-    Developing: 'Evidence is present but needs more analysis. Don\'t let sources speak for themselves — explain what they prove.',
-    Beginning: 'More sources are needed, and those you use should be more directly tied to your argument.',
-    Insufficient: 'This essay lacks evidence. All claims should be supported with cited sources.',
-  },
-  organization: {
-    Exemplary: 'The essay flows seamlessly; transitions like "Furthermore" and "Therefore" carry real logical weight here.',
-    Proficient: 'Structure is clear. One or two transitions feel mechanical — aim for transitions that also advance the argument.',
-    Developing: 'Paragraphs have a clear topic but transitions between them are abrupt. Try ending each paragraph with a bridge sentence.',
-    Beginning: 'The sections feel disconnected. Consider outlining the logical relationship between each paragraph before revising.',
-    Insufficient: 'No clear organizational logic is evident. A full structural revision is recommended.',
-  },
-  grammar: {
-    Proficient: 'Prose is clean and polished throughout.',
-    Developing: 'A few mechanical errors are present but don\'t impede reading. Proofread carefully before final submission.',
-    Beginning: 'Frequent errors impede comprehension. Visit the Writing Center before resubmission.',
-  },
-  citations: {
-    Proficient: 'Citations are consistent and correctly formatted throughout.',
-    Developing: 'Minor citation errors noted. Check that all in-text citations have matching bibliography entries.',
-    Insufficient: 'Citations are missing or incorrectly formatted. Follow APA guidelines throughout.',
-  },
-}
+// ── Canvas-backed data ────────────────────────────────────────────────────
+//
+// The rubric, submission text, evidence spans, and suggested comments all arrive
+// from Canvas via the backend. Nothing here is hardcoded: when a load fails the UI
+// says so rather than falling back to sample data.
 
 // ── Small SVG icons ────────────────────────────────────────────────────────
 
@@ -305,7 +82,8 @@ const IcoSun = () => (
 // ── Render essay paragraph with highlights ─────────────────────────────────
 
 function renderParagraph(
-  para: typeof ESSAY_PARAGRAPHS[0],
+  para: Paragraph,
+  criteria: Criterion[],
   spans: HSpan[],
   activeSpanId: string | null,
   activeCriterionId: string | null,
@@ -337,14 +115,17 @@ function renderParagraph(
     segs.splice(0, segs.length, ...next)
   }
 
-  const criterion = (id: string) => CRITERIA.find((c) => c.id === spans.find((s) => s.id === id)?.criterionId)
+  const criterion = (id: string) => criteria.find((c) => c.id === spans.find((s) => s.id === id)?.criterionId)
 
   return (
     <>
       {segs.map((seg, i) => {
         if (!seg.spanId) return <span key={i}>{seg.text}</span>
         const hs = spans.find((s) => s.id === seg.spanId)!
-        const crit = criterion(seg.spanId)!
+        const crit = criterion(seg.spanId)
+        // A span whose criterion is missing means the rubric changed under us; skip the
+        // highlight rather than crashing the whole document view.
+        if (!crit) return <span key={i}>{seg.text}</span>
         const isActive = activeSpanId === seg.spanId || activeCriterionId === hs.criterionId
         const dimmed = activeCriterionId && activeCriterionId !== hs.criterionId
         return (
@@ -373,6 +154,7 @@ function renderParagraph(
 
 function MarginFlags({
   paraIdx,
+  criteria,
   spans,
   activeSpanId,
   openTooltipId,
@@ -380,6 +162,7 @@ function MarginFlags({
   dark,
 }: {
   paraIdx: number
+  criteria: Criterion[]
   spans: HSpan[]
   activeSpanId: string | null
   openTooltipId: string | null
@@ -391,7 +174,8 @@ function MarginFlags({
   return (
     <div style={{ width: 28, display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 2, position: 'relative' }}>
       {paraSpans.map((hs) => {
-        const crit = CRITERIA.find((c) => c.id === hs.criterionId)!
+        const crit = criteria.find((c) => c.id === hs.criterionId)
+        if (!crit) return null
         const isOpen = openTooltipId === hs.id
         return (
           <div key={hs.id} style={{ position: 'relative' }}>
@@ -476,6 +260,8 @@ function MarginFlags({
 
 function CriterionCard({
   crit,
+  aiComments,
+  spans,
   score,
   isExpanded,
   isActive,
@@ -484,7 +270,9 @@ function CriterionCard({
   onJump,
   dark,
 }: {
-  crit: typeof CRITERIA[0]
+  crit: Criterion
+  aiComments: Record<string, string> | undefined
+  spans: HSpan[]
   score: number | null
   isExpanded: boolean
   isActive: boolean
@@ -494,7 +282,7 @@ function CriterionCard({
   dark: boolean
 }) {
   const selectedLevel = score !== null ? crit.levels.find((l) => l.pts === score) : null
-  const aiComment = selectedLevel ? AI_COMMENTS[crit.id]?.[selectedLevel.label] : null
+  const aiComment = selectedLevel ? aiComments?.[selectedLevel.label] : null
 
   return (
     <div
@@ -684,7 +472,7 @@ function CriterionCard({
       )}
 
       {/* "No match" state */}
-      {isExpanded && !HIGHLIGHT_SPANS.some((s) => s.criterionId === crit.id) && (
+      {isExpanded && !spans.some((s) => s.criterionId === crit.id) && (
         <div
           style={{
             padding: '8px 12px 12px',
@@ -701,31 +489,144 @@ function CriterionCard({
   )
 }
 
+// ── Full-screen load / empty states ────────────────────────────────────────
+
+function FullScreenNotice({
+  bg,
+  color,
+  title,
+  detail,
+  action,
+}: {
+  bg: string
+  color: string
+  title: string
+  detail?: string
+  action?: { label: string; onClick: () => void }
+}) {
+  return (
+    <div
+      style={{
+        height: '100vh',
+        background: bg,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 12,
+        padding: 24,
+        textAlign: 'center',
+      }}
+    >
+      <p style={{ color, fontSize: 15, fontWeight: 600 }}>{title}</p>
+      {detail && (
+        <p style={{ color, fontSize: 12, maxWidth: 460, lineHeight: 1.5, opacity: 0.85 }}>
+          {detail}
+        </p>
+      )}
+      {action && (
+        <button
+          onClick={action.onClick}
+          style={{
+            marginTop: 4,
+            padding: '7px 18px',
+            borderRadius: 7,
+            border: 'none',
+            background: 'linear-gradient(135deg, #0374B5, #025F96)',
+            color: '#FFFFFF',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          {action.label}
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ── Main App ───────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [scores, setScores] = useState<Record<string, number | null>>(
-    Object.fromEntries(CRITERIA.map((c) => [c.id, null]))
-  )
-  const [expandedId, setExpandedId] = useState<string>('thesis')
-  const [activeCriterionId, setActiveCriterionId] = useState<string | null>('thesis')
+  const canvas = useCanvasData(ASSIGNMENT_ID)
+
+  const criteria = useMemo(() => canvas.rubric?.criteria ?? [], [canvas.rubric])
+  const paragraphs = canvas.submission?.paragraphs ?? []
+  const spans = canvas.submission?.spans ?? []
+  const aiComments = canvas.submission?.comments ?? {}
+
+  const [scores, setScores] = useState<Record<string, number | null>>({})
+  const [expandedId, setExpandedId] = useState<string>('')
+  const [activeCriterionId, setActiveCriterionId] = useState<string | null>(null)
   const [activeSpanId, setActiveSpanId] = useState<string | null>(null)
-  const [openTooltipId, setOpenTooltipId] = useState<string | null>('h2')
+  const [openTooltipId, setOpenTooltipId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [showHighlights, setShowHighlights] = useState(true)
   const [dark, setDark] = useState(false)
   const [comment, setComment] = useState('')
   const [synced, setSynced] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncError, setSyncError] = useState<string | null>(null)
+  const [canvasTotal, setCanvasTotal] = useState<number | null>(null)
 
   const submissionRef = useRef<HTMLDivElement>(null)
 
-  const totalEarned = CRITERIA.reduce((s, c) => s + (scores[c.id] ?? 0), 0)
-  const totalPossible = CRITERIA.reduce((s, c) => s + c.maxPts, 0)
-  const scoredCount = CRITERIA.filter((c) => scores[c.id] !== null).length
-  const allScored = scoredCount === CRITERIA.length
+  // Reset per-submission state when the TA moves to another student, seeding from any
+  // assessment Canvas already holds so re-opening graded work shows the real scores.
+  useEffect(() => {
+    if (!canvas.submission) return
+
+    const seeded: Record<string, number | null> = {}
+    for (const c of criteria) {
+      seeded[c.id] = canvas.submission.existingScores?.[c.id] ?? null
+    }
+    setScores(seeded)
+    setExpandedId(criteria[0]?.id ?? '')
+    setActiveCriterionId(criteria[0]?.id ?? null)
+    setActiveSpanId(null)
+    setOpenTooltipId(null)
+    setComment('')
+    setSynced(false)
+    setSyncError(null)
+    setCanvasTotal(null)
+  }, [canvas.submission, criteria])
+
+  const totalEarned = criteria.reduce((s, c) => s + (scores[c.id] ?? 0), 0)
+  const totalPossible = criteria.reduce((s, c) => s + c.maxPts, 0)
+  const scoredCount = criteria.filter((c) => scores[c.id] != null).length
+  const allScored = criteria.length > 0 && scoredCount === criteria.length
+
+  async function handleSync() {
+    if (!canvas.currentStudent || !allScored || syncing) return
+
+    setSyncing(true)
+    setSyncError(null)
+    try {
+      const result = await syncToCanvas(
+        ASSIGNMENT_ID,
+        canvas.currentStudent.userId,
+        criteria.map((c) => ({
+          criterionId: c.id,
+          points: scores[c.id] ?? null,
+          // Name the rating the TA actually picked, so Canvas records the level and
+          // not just a bare point value.
+          ratingId: c.levels.find((l) => l.pts === scores[c.id])?.id ?? null,
+        })),
+        comment,
+      )
+      setSynced(true)
+      setCanvasTotal(result.canvasTotal)
+    } catch (cause) {
+      // Preserve every TA input and show Canvas's own message so the sync can be retried.
+      setSyncError(cause instanceof ApiError ? cause.message : String(cause))
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   function handleSpanClick(id: string) {
-    const span = HIGHLIGHT_SPANS.find((s) => s.id === id)
+    const span = spans.find((s) => s.id === id)
     if (!span) return
     setActiveSpanId(id === activeSpanId ? null : id)
     setActiveCriterionId(span.criterionId)
@@ -736,7 +637,7 @@ export default function App() {
   function handleJump(criterionId: string) {
     setActiveCriterionId(criterionId)
     setActiveSpanId(null)
-    const firstSpan = HIGHLIGHT_SPANS.find((s) => s.criterionId === criterionId)
+    const firstSpan = spans.find((s) => s.criterionId === criterionId)
     if (firstSpan) setOpenTooltipId(firstSpan.id)
   }
 
@@ -751,6 +652,49 @@ export default function App() {
   const textPrimary = dark ? '#E2EAF4' : '#1A2332'
   const textSecondary = dark ? '#6B8CAE' : '#6B7E93'
   const headerBg = dark ? '#0A1520' : '#2D3B45'
+
+  // Load states are full-screen because there is nothing meaningful to render around a
+  // missing rubric. None of them substitute sample data — a screen that looks like it
+  // is working while disconnected is worse than one that says it is not.
+  if (canvas.loading) {
+    return <FullScreenNotice bg={bg} color={textSecondary} title="Loading from Canvas…" />
+  }
+
+  if (canvas.error) {
+    return (
+      <FullScreenNotice
+        bg={bg}
+        color={textSecondary}
+        title="Could not load from Canvas"
+        detail={canvas.error}
+        action={{ label: 'Retry', onClick: canvas.reload }}
+      />
+    )
+  }
+
+  if (!canvas.rubric?.hasRubric) {
+    return (
+      <FullScreenNotice
+        bg={bg}
+        color={textSecondary}
+        title="No rubric attached to this assignment"
+        detail="Attach a rubric in Canvas, then reload. Grading cannot proceed without one."
+        action={{ label: 'Reload', onClick: canvas.reload }}
+      />
+    )
+  }
+
+  if (canvas.queue.length === 0) {
+    return (
+      <FullScreenNotice
+        bg={bg}
+        color={textSecondary}
+        title="No submissions to grade"
+        detail="Every student is still unsubmitted, so the grading queue is empty."
+        action={{ label: 'Reload', onClick: canvas.reload }}
+      />
+    )
+  }
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: bg, overflow: 'hidden' }}>
@@ -789,7 +733,7 @@ export default function App() {
           <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12 }}>SpeedGrader</span>
           <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>›</span>
           <span style={{ color: '#FFFFFF', fontSize: 13, fontWeight: 600 }}>
-            Essay 3: Argumentative Analysis
+            {canvas.rubric?.assignmentName ?? 'Loading…'}
           </span>
         </div>
 
@@ -805,14 +749,45 @@ export default function App() {
             padding: '5px 10px',
           }}
         >
-          <button style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', display: 'flex' }}>
+          <button
+            onClick={canvas.previous}
+            disabled={canvas.currentIndex === 0}
+            title="Previous student"
+            style={{
+              background: 'none',
+              border: 'none',
+              color: canvas.currentIndex === 0 ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.7)',
+              cursor: canvas.currentIndex === 0 ? 'default' : 'pointer',
+              display: 'flex',
+            }}
+          >
             <IcoArrowLeft />
           </button>
-          <div style={{ textAlign: 'center' }}>
-            <p style={{ color: '#FFFFFF', fontSize: 12, fontWeight: 600, lineHeight: 1.1 }}>Maya Chen</p>
-            <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10 }}>Student 7 of 24</p>
+          <div style={{ textAlign: 'center', minWidth: 110 }}>
+            <p style={{ color: '#FFFFFF', fontSize: 12, fontWeight: 600, lineHeight: 1.1 }}>
+              {canvas.currentStudent?.name ?? '—'}
+            </p>
+            <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10 }}>
+              {canvas.queue.length > 0
+                ? `Student ${canvas.currentIndex + 1} of ${canvas.queue.length}`
+                : 'No submissions'}
+            </p>
           </div>
-          <button style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', display: 'flex' }}>
+          <button
+            onClick={canvas.next}
+            disabled={canvas.currentIndex >= canvas.queue.length - 1}
+            title="Next student"
+            style={{
+              background: 'none',
+              border: 'none',
+              color:
+                canvas.currentIndex >= canvas.queue.length - 1
+                  ? 'rgba(255,255,255,0.25)'
+                  : 'rgba(255,255,255,0.7)',
+              cursor: canvas.currentIndex >= canvas.queue.length - 1 ? 'default' : 'pointer',
+              display: 'flex',
+            }}
+          >
             <IcoArrowRight />
           </button>
         </div>
@@ -948,7 +923,7 @@ export default function App() {
 
             {/* Highlight key */}
             <div style={{ display: 'flex', gap: 8, paddingLeft: 8, borderLeft: `1px solid ${borderColor}` }}>
-              {CRITERIA.map((c) => (
+              {criteria.map((c) => (
                 <button
                   key={c.id}
                   onClick={() => {
@@ -1000,7 +975,41 @@ export default function App() {
                 boxShadow: dark ? '0 4px 24px rgba(0,0,0,0.35)' : '0 1px 8px rgba(0,0,0,0.06)',
               }}
             >
-              {ESSAY_PARAGRAPHS.map((para) => (
+              {canvas.loadingSubmission && (
+                <p style={{ color: textSecondary, fontSize: 12, marginBottom: 16 }}>
+                  Loading submission…
+                </p>
+              )}
+
+              {/* Extraction can fail without blocking grading — the TA scores manually. */}
+              {canvas.submission?.extractionError && (
+                <div
+                  role="alert"
+                  style={{
+                    marginBottom: 20,
+                    padding: '10px 12px',
+                    borderRadius: 7,
+                    background: 'rgba(217,119,6,0.1)',
+                    border: '1px solid rgba(217,119,6,0.35)',
+                    color: dark ? '#FCD34D' : '#92400E',
+                    fontSize: 12,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <strong>Could not read this submission.</strong> {canvas.submission.extractionError}
+                  {' '}You can still score it manually against the rubric.
+                </div>
+              )}
+
+              {!canvas.loadingSubmission
+                && paragraphs.length === 0
+                && !canvas.submission?.extractionError && (
+                <p style={{ color: textSecondary, fontSize: 12 }}>
+                  This submission has no readable text.
+                </p>
+              )}
+
+              {paragraphs.map((para) => (
                 <div
                   key={para.idx}
                   style={{
@@ -1027,7 +1036,8 @@ export default function App() {
                     {showHighlights && (
                       <MarginFlags
                         paraIdx={para.idx}
-                        spans={HIGHLIGHT_SPANS}
+                        criteria={criteria}
+                        spans={spans}
                         activeSpanId={activeSpanId}
                         openTooltipId={openTooltipId}
                         onFlagClick={handleSpanClick}
@@ -1061,7 +1071,8 @@ export default function App() {
                       >
                         {renderParagraph(
                           para,
-                          HIGHLIGHT_SPANS,
+                          criteria,
+                          spans,
                           activeSpanId,
                           activeCriterionId,
                           showHighlights,
@@ -1146,7 +1157,7 @@ export default function App() {
             </div>
             <div style={{ fontSize: 11, color: textSecondary, textAlign: 'center', lineHeight: 1.4 }}>
               <span style={{ display: 'block', color: dark ? '#4A6280' : '#94A3B8', fontSize: 10 }}>
-                {scoredCount}/{CRITERIA.length} criteria
+                {scoredCount}/{criteria.length} criteria
               </span>
             </div>
           </div>
@@ -1259,7 +1270,7 @@ export default function App() {
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
                     <span style={{ fontSize: 11, color: textSecondary }}>
-                      Criteria addressed: <strong style={{ color: textPrimary }}>{scoredCount}/{CRITERIA.length}</strong>
+                      Criteria addressed: <strong style={{ color: textPrimary }}>{scoredCount}/{criteria.length}</strong>
                     </span>
                     <span
                       style={{
@@ -1283,7 +1294,7 @@ export default function App() {
                     <div
                       style={{
                         height: '100%',
-                        width: `${(scoredCount / CRITERIA.length) * 100}%`,
+                        width: `${criteria.length ? (scoredCount / criteria.length) * 100 : 0}%`,
                         background: 'linear-gradient(90deg, #0374B5, #0D9488)',
                         borderRadius: 999,
                         transition: 'width 0.4s ease',
@@ -1295,10 +1306,12 @@ export default function App() {
 
               {/* Criteria list */}
               <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 0' }}>
-                {CRITERIA.map((crit) => (
+                {criteria.map((crit) => (
                   <CriterionCard
                     key={crit.id}
                     crit={crit}
+                    aiComments={aiComments[crit.id]}
+                    spans={spans}
                     score={scores[crit.id] ?? null}
                     isExpanded={expandedId === crit.id}
                     isActive={activeCriterionId === crit.id}
@@ -1349,9 +1362,31 @@ export default function App() {
                     onBlur={(e) => (e.currentTarget.style.borderColor = dark ? '#1A3347' : '#DDE5EE')}
                   />
                 </div>
+                {syncError && (
+                  <div
+                    role="alert"
+                    style={{
+                      marginBottom: 8,
+                      padding: '8px 10px',
+                      borderRadius: 7,
+                      background: 'rgba(220,38,38,0.1)',
+                      border: '1px solid rgba(220,38,38,0.35)',
+                      color: dark ? '#FCA5A5' : '#B91C1C',
+                      fontSize: 11,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {syncError}
+                  </div>
+                )}
+                {synced && canvasTotal != null && (
+                  <p style={{ marginBottom: 8, fontSize: 11, color: textSecondary }}>
+                    Canvas recorded <strong style={{ color: textPrimary }}>{canvasTotal}</strong> points.
+                  </p>
+                )}
                 <button
-                  onClick={() => { if (allScored) setSynced(true) }}
-                  disabled={!allScored}
+                  onClick={handleSync}
+                  disabled={!allScored || syncing || synced}
                   style={{
                     width: '100%',
                     padding: '9px 0',
@@ -1379,7 +1414,7 @@ export default function App() {
                   }}
                 >
                   <IcoSync />
-                  {synced ? 'Synced to Canvas ✓' : allScored ? 'Sync to Canvas Gradebook' : `Score ${CRITERIA.length - scoredCount} more criteria`}
+                  {synced ? 'Synced to Canvas ✓' : syncing ? 'Syncing…' : allScored ? 'Sync to Canvas Gradebook' : `Score ${criteria.length - scoredCount} more criteria`}
                 </button>
               </div>
             </div>
