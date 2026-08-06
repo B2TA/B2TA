@@ -42,7 +42,7 @@ export function createApp(store = new MemoryStore()) {
   app.use(express.json({ limit: "1mb" }))
   app.use((request, response, next) => {
     response.setHeader("Access-Control-Allow-Origin", process.env.WEB_ORIGIN ?? "http://localhost:8443")
-    response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type")
     response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
     if (request.method === "OPTIONS") return response.sendStatus(204)
     next()

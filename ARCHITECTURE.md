@@ -25,8 +25,12 @@ background queues or independently deployed services.
 
 The current `MemoryStore` is intentionally temporary. It holds grading sessions, rubrics,
 and empty submission collections for local frontend integration, and all state resets on
-process restart. Authentication, durable persistence, uploads, grading records, analysis,
-and Canvas API calls remain future vertical slices.
+process restart. Durable persistence, uploads, grading records, analysis, and Canvas API
+calls remain future vertical slices.
+
+The current deployment model has one trusted operator. It has no login or multi-user
+authorization boundary. Authentication becomes required only if B2TA is opened to
+multiple users.
 
 ## Runtime boundary
 
@@ -76,7 +80,6 @@ The backend stays monolithic while keeping clear internal ownership:
 | File ingestion | Accept files and normalize their text | Not implemented |
 | AI assistance | Suggest evidence and feedback without assigning scores | Not implemented |
 | LMS adapters | Import external data and publish reviewed results | Canvas boundary defined, not implemented |
-| Authentication | Identify a TA and enforce resource ownership | Not implemented |
 
 An internal module boundary is not a deployment boundary. New capabilities should remain
 in the Express application unless operational evidence creates a concrete need to split
@@ -120,8 +123,8 @@ payloads belong only to the Canvas adapter.
 - Results leave B2TA only after TA review and an explicit export or publish action.
 - Sensitive student content, access tokens, and LMS credentials do not belong in normal
   application logs.
-- Multi-user deployment requires authentication and per-session authorization before it
-  can be considered safe.
+- The single-user scope is not a safe multi-user deployment; authentication and
+  per-session authorization must precede any expansion to multiple users.
 
 ## Decisions
 

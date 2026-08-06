@@ -66,15 +66,20 @@ inside that backend monolith as ordinary modules.
 
 The first backend slice uses an in-memory store so the frontend has a real HTTP contract
 without committing to production infrastructure too early. State resets whenever the
-backend restarts. Persistence, authentication, file storage, AI analysis, and Canvas
-connectivity are not implemented yet.
+backend restarts. Durable persistence, file storage, AI analysis, and Canvas connectivity
+are not implemented yet.
+
+The current product scope is a trusted, single-user application. B2TA does not require a
+login or multi-user authorization for this phase. If it becomes a shared deployment,
+identity and per-session ownership enforcement must be added before other users receive
+access.
 
 | Layer | Technology |
 |---|---|
 | Frontend | React 19, Vite 8, Tailwind CSS v4 — Amplify Hosting |
 | Backend | Express 5 and TypeScript — one monolithic process |
 | Current state | In-memory store for sessions, rubrics, and submission lists |
-| Planned modules | Persistence, authentication, file ingestion, AI assistance, and LMS adapters |
+| Planned modules | Persistence, file ingestion, AI assistance, and LMS adapters |
 | LMS integration | Provider-neutral adapter boundary; Canvas first |
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the system and integration boundaries.
@@ -86,7 +91,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the system and integration boundari
 | Session dashboard | Active routed frontend with real API-backed list, create, resume, and delete flows |
 | High-fidelity marking prototype | Retained in `src/App.tsx` as a fixture-backed design reference |
 | Backend monolith | Express API scaffold with health, session, rubric, and submission-list endpoints |
-| Backend persistence and authentication | Not implemented; current state is local and in memory |
+| Backend persistence | Not implemented; current state is local and in memory |
 | Canvas API feasibility | Verified against the hackathon Canvas instance |
 | Canvas adapter | Architectural boundary defined; implementation remains in progress |
 | End-to-end production workflow | In progress |
@@ -152,12 +157,12 @@ ARCHITECTURE.md                              System architecture
 
 ## Security notes
 
-- Authentication and durable storage are not implemented in the current backend slice.
+- The current deployment is for one trusted operator and intentionally has no login.
 - LMS credentials must remain backend-only and never be exposed to the browser.
 - Student submissions, names, feedback, and access tokens must not be logged at INFO.
 - Student work must not be committed. Fixtures contain generated structures without PII.
-- Before multi-user deployment, every API operation must enforce ownership of its grading
-  session and associated files.
+- Before any multi-user deployment, add authentication and enforce ownership of every
+  grading session and associated file.
 
 ## License
 

@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { useState } from "react"
 import {
-  LoginPage,
   SessionListPage,
   SessionSetupPage,
   MarkingPage,
@@ -26,7 +25,6 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
           <Route path="/sessions" element={<SessionListPage />} />
           <Route path="/sessions/:id/setup" element={<SessionSetupPage />} />
           <Route path="/sessions/:id/mark" element={<MarkingPage />} />

@@ -1,36 +1,20 @@
 /**
  * API client module.
- * Wraps fetch with auth headers and error handling.
+ * Wraps fetch with consistent JSON handling and errors.
  */
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api"
 
-async function getAuthToken(): Promise<string | null> {
-  // TODO: Retrieve access token from @aws-amplify/auth
-  return null
-}
-
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = await getAuthToken()
-
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...options.headers as Record<string, string>,
-  }
-
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers,
   })
-
-  if (response.status === 401) {
-    // TODO: Trigger re-authentication modal
-    throw new ApiError(401, "Unauthorized")
-  }
 
   if (!response.ok) {
     throw new ApiError(response.status, await response.text())
