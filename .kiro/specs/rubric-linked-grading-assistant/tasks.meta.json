@@ -1,0 +1,398 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Initialize Java Spring Boot backend project with multi-module Maven structure": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044225042
+      },
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044248901
+      },
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044585747
+      }
+    ],
+    "1.2 Define shared domain model classes and DTOs in `common` module": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044225688
+      },
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044592579
+      },
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044929906
+      }
+    ],
+    "1.3 Create PostgreSQL schema migration scripts (Flyway)": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044226074
+      },
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044593444
+      },
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044930939
+      }
+    ],
+    "1.4 Set up frontend production project structure alongside prototype": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044226386
+      },
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044249541
+      },
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044586835
+      }
+    ],
+    "1.5 Configure AWS infrastructure as code (CDK or CloudFormation)": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044226632
+      },
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044250482
+      },
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044587787
+      }
+    ],
+    "2. Checkpoint - Ensure project compiles and infrastructure plan is reviewable": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044226895
+      }
+    ],
+    "3.1 Implement `SessionService` and `SessionController` (CRUD)": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044227156
+      }
+    ],
+    "3.2 Implement `RubricController` and rubric CRUD endpoints": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044227407
+      }
+    ],
+    "3.3 Implement `UploadService` with pre-signed S3 URL generation": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044227657
+      }
+    ],
+    "3.4 Implement `RubricParseHandler` in Worker service": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044227973
+      }
+    ],
+    "3.6 Implement `RubricPrinter` (CSV serialization) and export endpoint": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044228310
+      }
+    ],
+    "3.7 Implement `SubmissionController` and submission management endpoints": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044228596
+      }
+    ],
+    "3.8 Implement `SubmissionIngestHandler` in Worker service": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044228866
+      }
+    ],
+    "3.9 Implement `TextExtractor` for PDF, DOCX, TXT, MD formats": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044229104
+      }
+    ],
+    "3.11 Implement `RosterResolver` for student identity derivation": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044229367
+      }
+    ],
+    "3.12 Implement `AsyncJob` tracking and polling endpoint": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044229571
+      }
+    ],
+    "4. Checkpoint - Core data layer and ingestion pipeline complete": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044229849
+      }
+    ],
+    "5.1 Implement `AuthFilter` with Cognito JWT validation": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044230181
+      }
+    ],
+    "5.2 Implement tenant isolation enforcement across all repositories": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044230518
+      }
+    ],
+    "5.3 Implement `SensitiveDataFilter` for structured logging": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044230862
+      }
+    ],
+    "5.4 Implement `MatchEngineHandler` in Worker service": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044231116
+      }
+    ],
+    "5.5 Implement match deduplication and persistence": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044231373
+      }
+    ],
+    "5.7 Implement `GradingController` — save/load grading records": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044231615
+      }
+    ],
+    "5.9 Implement `CommentController` — AI comment suggestions": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044231916
+      }
+    ],
+    "5.10 Implement `ReviewController` — review screen data": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044232164
+      }
+    ],
+    "5.11 Implement `ExportController` and `ExportService`": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044232417
+      }
+    ],
+    "6. Checkpoint - Backend API and AI integration complete": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044232662
+      }
+    ],
+    "7.1 Implement AuthProvider with Cognito integration": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044232909
+      }
+    ],
+    "7.2 Implement SessionListPage": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044233183
+      }
+    ],
+    "7.3 Implement SessionSetupPage — Rubric upload and editor": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044233458
+      }
+    ],
+    "7.4 Implement SessionSetupPage — Submission upload and ingestion": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044233862
+      }
+    ],
+    "8.1 Refactor MarkingView to load data from API": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044234173
+      }
+    ],
+    "8.2 Implement RubricPanel with dynamic data and all states": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044234501
+      }
+    ],
+    "8.3 Implement DocumentViewer with dynamic highlighting": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044234779
+      }
+    ],
+    "8.4 Implement match interaction (hover, confirm, reject, manual)": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044235093
+      }
+    ],
+    "8.5 Implement criterion-to-passage navigation": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044235352
+      }
+    ],
+    "8.6 Implement confidence threshold filtering and stale match UI": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044235617
+      }
+    ],
+    "8.7 Implement FeedbackEditor and CommentAssistant": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044235887
+      }
+    ],
+    "8.8 Implement BatchNavigator with save-and-advance flow": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044236223
+      }
+    ],
+    "8.9 Implement explicit save, unsaved indicator, and session resume": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044236497
+      }
+    ],
+    "9. Checkpoint - Marking view fully functional with API integration": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044236797
+      }
+    ],
+    "10.1 Implement full keyboard shortcut system": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044237062
+      }
+    ],
+    "10.2 Implement ReviewScreen": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044237320
+      }
+    ],
+    "10.3 Implement ExportDialog": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044237584
+      }
+    ],
+    "11.1 Wire frontend API client with auth headers and error handling": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044237907
+      }
+    ],
+    "11.2 Implement S3 direct upload flow end-to-end": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044238165
+      }
+    ],
+    "11.3 Implement async job polling UI pattern": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044238512
+      }
+    ],
+    "12. Final checkpoint - Full system integration verified": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044238772
+      }
+    ],
+    "1. Project scaffolding and shared interfaces": [
+      {
+        "executionId": "2f668d05-9bdf-4ecf-8819-f0a8a46a3ee4",
+        "chatSessionId": "sess_f64a3ba2-e905-4a87-8c6f-80dad2334d6a",
+        "timestamp": 1786044931158
+      }
+    ]
+  }
+}

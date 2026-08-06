@@ -1,0 +1,59 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Grading Assistant - SQS Queue and Dead Letter Queue"
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: grading-assistant
+    Description: Environment name prefix for resource naming
+
+Resources:
+  # ---------- Dead Letter Queue ----------
+  GradingJobDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${EnvironmentName}-job-dlq"
+      MessageRetentionPeriod: 1209600  # 14 days in seconds
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-job-dlq"
+
+  # ---------- Main Job Queue ----------
+  GradingJobQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${EnvironmentName}-job-queue"
+      VisibilityTimeout: 300  # 5 minutes - covers longest operation
+      MessageRetentionPeriod: 345600  # 4 days in seconds
+      ReceiveMessageWaitTimeSeconds: 20  # Long polling
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt GradingJobDLQ.Arn
+        maxReceiveCount: 3
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-job-queue"
+
+Outputs:
+  JobQueueUrl:
+    Description: SQS Job Queue URL
+    Value: !Ref GradingJobQueue
+    Export:
+      Name: !Sub "${EnvironmentName}-JobQueueUrl"
+
+  JobQueueArn:
+    Description: SQS Job Queue ARN
+    Value: !GetAtt GradingJobQueue.Arn
+    Export:
+      Name: !Sub "${EnvironmentName}-JobQueueArn"
+
+  DLQUrl:
+    Description: SQS Dead Letter Queue URL
+    Value: !Ref GradingJobDLQ
+    Export:
+      Name: !Sub "${EnvironmentName}-DLQUrl"
+
+  DLQArn:
+    Description: SQS Dead Letter Queue ARN
+    Value: !GetAtt GradingJobDLQ.Arn
+    Export:
+      Name: !Sub "${EnvironmentName}-DLQArn"

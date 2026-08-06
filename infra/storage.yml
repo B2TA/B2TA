@@ -1,0 +1,159 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Grading Assistant - S3 Bucket with Lifecycle Rules, RDS PostgreSQL 16"
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: grading-assistant
+    Description: Environment name prefix for resource naming
+
+  PrivateSubnet1Id:
+    Type: String
+    Description: Private subnet 1 ID for RDS
+
+  PrivateSubnet2Id:
+    Type: String
+    Description: Private subnet 2 ID for RDS
+
+  RdsSecurityGroupId:
+    Type: String
+    Description: Security group ID for RDS instance
+
+  DBMasterUsername:
+    Type: String
+    Default: gradingadmin
+    Description: Master username for RDS
+
+  DBMasterPassword:
+    Type: String
+    NoEcho: true
+    Description: Master password for RDS (use Secrets Manager in production)
+    MinLength: 8
+
+Resources:
+  # ---------- S3 Bucket ----------
+  GradingFilesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "grading-assistant-files-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExportCleanup30Days
+            Prefix: "exports/"
+            Status: Enabled
+            ExpirationInDays: 30
+          - Id: UploadCleanup180Days
+            Prefix: "uploads/"
+            Status: Enabled
+            ExpirationInDays: 180
+      VersioningConfiguration:
+        Status: Suspended
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-files"
+
+  GradingFilesBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref GradingFilesBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: EnforceHTTPS
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !GetAtt GradingFilesBucket.Arn
+              - !Sub "${GradingFilesBucket.Arn}/*"
+            Condition:
+              Bool:
+                "aws:SecureTransport": "false"
+          - Sid: EnforceEncryption
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:PutObject"
+            Resource: !Sub "${GradingFilesBucket.Arn}/*"
+            Condition:
+              StringNotEquals:
+                "s3:x-amz-server-side-encryption": "AES256"
+
+  # ---------- RDS PostgreSQL ----------
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for Grading Assistant RDS
+      SubnetIds:
+        - !Ref PrivateSubnet1Id
+        - !Ref PrivateSubnet2Id
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-db-subnet-group"
+
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: !Sub "${EnvironmentName}-db"
+      Engine: postgres
+      EngineVersion: "16"
+      DBInstanceClass: db.t4g.medium
+      AllocatedStorage: 50
+      StorageType: gp3
+      MultiAZ: true
+      DBName: gradingdb
+      MasterUsername: !Ref DBMasterUsername
+      MasterUserPassword: !Ref DBMasterPassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref RdsSecurityGroupId
+      EnableIAMDatabaseAuthentication: true
+      BackupRetentionPeriod: 7
+      PreferredBackupWindow: "03:00-04:00"
+      PreferredMaintenanceWindow: "sun:05:00-sun:06:00"
+      DeletionProtection: true
+      StorageEncrypted: true
+      MaxAllocatedStorage: 200
+      PubliclyAccessible: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-rds"
+
+Outputs:
+  BucketName:
+    Description: S3 bucket name for grading files
+    Value: !Ref GradingFilesBucket
+    Export:
+      Name: !Sub "${EnvironmentName}-BucketName"
+
+  BucketArn:
+    Description: S3 bucket ARN
+    Value: !GetAtt GradingFilesBucket.Arn
+    Export:
+      Name: !Sub "${EnvironmentName}-BucketArn"
+
+  RDSEndpoint:
+    Description: RDS instance endpoint address
+    Value: !GetAtt RDSInstance.Endpoint.Address
+    Export:
+      Name: !Sub "${EnvironmentName}-RDSEndpoint"
+
+  RDSPort:
+    Description: RDS instance port
+    Value: !GetAtt RDSInstance.Endpoint.Port
+    Export:
+      Name: !Sub "${EnvironmentName}-RDSPort"
+
+  DBInstanceArn:
+    Description: RDS instance ARN
+    Value: !Sub "arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:${RDSInstance.DbiResourceId}/${DBMasterUsername}"
+    Export:
+      Name: !Sub "${EnvironmentName}-DBInstanceArn"

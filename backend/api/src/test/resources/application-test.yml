@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    url: jdbc:tc:postgresql:16-alpine:///grading_assistant
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
+  flyway:
+    enabled: false
+
+aws:
+  region: us-east-1
+  s3:
+    bucket: test-bucket
+  sqs:
+    queue-url: http://localhost:4566/000000000000/test-queue
+  cognito:
+    user-pool-id: us-east-1_test
+    region: us-east-1
