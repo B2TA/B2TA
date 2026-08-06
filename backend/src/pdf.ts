@@ -9,9 +9,14 @@ export type PdfExtractionResult = {
   reason: "password_protected" | "no_extractable_text" | "unreadable_file"
 }
 
-function normalizeText(pages: string[]): string {
+function normalizeText(pages: string[][]): string {
   return pages
-    .map((page) => page.replace(/[ \t]+/g, " ").trim())
+    .map((page) =>
+      page
+        .map((item) => item.replace(/[ \t]+/g, " ").trim())
+        .filter(Boolean)
+        .join(" "),
+    )
     .filter(Boolean)
     .join("\n\n")
     .trim()
@@ -28,7 +33,7 @@ export async function extractPdfText(
 
   try {
     const document = await loadingTask.promise
-    const pages: string[] = []
+    const pages: string[][] = []
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       const page = await document.getPage(pageNumber)
       const content = await page.getTextContent()
@@ -37,8 +42,7 @@ export async function extractPdfText(
           .filter(
             (item): item is typeof item & { str: string } => "str" in item,
           )
-          .map((item) => item.str)
-          .join(" "),
+          .map((item) => item.str),
       )
     }
 

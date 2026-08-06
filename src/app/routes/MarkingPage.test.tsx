@@ -2,6 +2,36 @@ import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, expect, test, vi } from "vitest"
 
+vi.mock("../components/PdfSubmissionViewer", () => ({
+  default: ({
+    artifactUrl,
+    rubric,
+    studentDisplayName,
+    suggestions,
+  }: {
+    artifactUrl: string
+    rubric: { criteria: Array<{ id: string title: string }> }
+    studentDisplayName: string
+    suggestions: Array<{ id: string criterionId: string }>
+  }) => (
+    <div aria-label={`${studentDisplayName} submission PDF`}>
+      <iframe
+        src={artifactUrl}
+        title={`${studentDisplayName} submission PDF`}
+      />
+      {suggestions.map((suggestion) => (
+        <span
+          data-testid={`pdf-evidence-${suggestion.id}`}
+          key={suggestion.id}
+          title={`Suggested for ${rubric.criteria.find(
+            (item) => item.id === suggestion.criterionId,
+          )?.title}`}
+        />
+      ))}
+    </div>
+  ),
+}))
+
 import App from "../App"
 
 const session = {
@@ -153,13 +183,18 @@ test("AI highlights likely rubric evidence without selecting a mark", async () =
   await screen.findByRole("heading", { name: "Alex Able" })
   await user.click(screen.getByRole("button", { name: "Find rubric evidence" }))
 
-  expect(await screen.findByText("clear thesis")).toBeVisible()
+  expect(
+    await screen.findByTestId("pdf-evidence-suggestion-1"),
+  ).toHaveAttribute("title", "Suggested for Thesis clarity")
   expect(
     screen.getByText("This passage states the central claim."),
   ).toBeVisible()
   expect(screen.getByText("Suggested for Thesis clarity")).toBeVisible()
   expect(screen.getAllByRole("radio", { checked: false })).toHaveLength(3)
   expect(screen.queryByText(/recommended score/i)).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole("button", { name: "Evidence text" }),
+  ).not.toBeInTheDocument()
 })
 
 test("TA grades one submission and restores the saved record", async () => {
@@ -169,8 +204,9 @@ test("TA grades one submission and restores the saved record", async () => {
   expect(
     await screen.findByRole("heading", { name: "Alex Able" }),
   ).toBeVisible()
-  expect(screen.getByTitle("Alex Able submission PDF")).toHaveAttribute(
-    "src",
+  expect(await screen.findByLabelText("Alex Able submission PDF")).toBeVisible()
+  expect(screen.getByRole("link", { name: "Open PDF" })).toHaveAttribute(
+    "href",
     submission.artifactUrl,
   )
   const strongLevels = screen.getAllByRole("radio", {

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { lazy, Suspense, useEffect, useMemo, useState } from "react"
 import { Link, Navigate, useParams } from "react-router"
 
 import api, { ApiError } from "../api"
@@ -18,63 +18,9 @@ type DraftScore = {
   criterionFeedback: string
 }
 
-function HighlightedSubmission({
-  text,
-  suggestions,
-  rubric,
-}: {
-  text: string
-  suggestions: SuggestedMatch[]
-  rubric: Rubric
-}) {
-  const ordered = [...suggestions].sort(
-    (a, b) => a.passageStart - b.passageStart,
-  )
-  const nonOverlapping = ordered.reduce<SuggestedMatch[]>(
-    (kept, suggestion) => {
-      const previous = kept.at(-1)
-      if (!previous || suggestion.passageStart >= previous.passageEnd)
-        kept.push(suggestion)
-      return kept
-    },
-    [],
-  )
-  const content: ReactNode[] = []
-  let cursor = 0
-  nonOverlapping.forEach((suggestion) => {
-    const criterion = rubric.criteria.find(
-      (item) => item.id === suggestion.criterionId,
-    )
-    content.push(text.slice(cursor, suggestion.passageStart))
-    content.push(
-      <mark
-        className="rounded-sm border-b-2 px-0.5 text-inherit"
-        key={suggestion.id}
-        style={{
-          backgroundColor: `${criterion?.displayColor ?? "#B45309"}20`,
-          borderColor: criterion?.displayColor ?? "#B45309",
-        }}
-        title={`Suggested for ${criterion?.title ?? "rubric criterion"}`}
-      >
-        {text.slice(suggestion.passageStart, suggestion.passageEnd)}
-      </mark>,
-    )
-    cursor = suggestion.passageEnd
-  })
-  content.push(text.slice(cursor))
-
-  return (
-    <article className="mx-auto min-h-[34rem] max-w-3xl border border-slate-300 bg-white px-8 py-10 text-[15px] leading-8 whitespace-pre-wrap shadow-lg sm:px-12">
-      {suggestions.length === 0 ? (
-        <p className="mb-8 border-l-2 border-amber-600 pl-4 text-sm leading-6 text-slate-500">
-          Ask B2TA to find likely rubric evidence. Suggestions will appear as
-          highlights here and never select a mark.
-        </p>
-      ) : null}
-      {content}
-    </article>
-  )
-}
+const PdfSubmissionViewer = lazy(
+  () => import("../components/PdfSubmissionViewer"),
+)
 
 export default function MarkingPage() {
   const queryClient = useQueryClient()
@@ -86,7 +32,6 @@ export default function MarkingPage() {
   const [overallFeedback, setOverallFeedback] = useState("")
   const [loaded, setLoaded] = useState(false)
   const [dirty, setDirty] = useState(false)
-  const [documentView, setDocumentView] = useState<"pdf" | "evidence">("pdf")
 
   const sessionQuery = useQuery({
     queryKey: ["sessions", id],
@@ -173,7 +118,6 @@ export default function MarkingPage() {
         ["sessions", id, "submissions", submission!.id, "evidence-suggestions"],
         suggestions,
       )
-      setDocumentView("evidence")
     },
   })
 
@@ -299,36 +243,6 @@ export default function MarkingPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <div
-                className="flex border border-slate-400 bg-white p-0.5"
-                aria-label="Submission view"
-              >
-                <button
-                  aria-pressed={documentView === "pdf"}
-                  className={`px-3 py-1.5 text-xs font-semibold ${
-                    documentView === "pdf"
-                      ? "bg-slate-800 text-white"
-                      : "text-slate-600"
-                  }`}
-                  onClick={() => setDocumentView("pdf")}
-                  type="button"
-                >
-                  PDF
-                </button>
-                <button
-                  aria-pressed={documentView === "evidence"}
-                  className={`px-3 py-1.5 text-xs font-semibold ${
-                    documentView === "evidence"
-                      ? "bg-slate-800 text-white"
-                      : "text-slate-600"
-                  }`}
-                  disabled={!submission.extractedText}
-                  onClick={() => setDocumentView("evidence")}
-                  type="button"
-                >
-                  Evidence text
-                </button>
-              </div>
               <a
                 className="border border-slate-400 bg-white px-3 py-2 text-xs font-semibold hover:border-amber-600 hover:text-amber-700"
                 href={submission.artifactUrl ?? "#"}
@@ -339,21 +253,21 @@ export default function MarkingPage() {
               </a>
             </div>
           </div>
-          {documentView === "pdf" ? (
-            <iframe
-              className="h-[calc(100vh-9.5rem)] min-h-[34rem] w-full rounded-sm border border-slate-400 bg-white shadow-lg"
-              src={submission.artifactUrl ?? undefined}
-              title={`${submission.studentDisplayName} submission PDF`}
+          <Suspense
+            fallback={
+              <div className="grid min-h-[34rem] place-items-center border border-slate-300 bg-white font-mono text-[10px] uppercase tracking-[0.14em] text-slate-500">
+                Opening PDF viewer…
+              </div>
+            }
+          >
+            <PdfSubmissionViewer
+              artifactUrl={submission.artifactUrl ?? ""}
+              expectedText={submission.extractedText ?? ""}
+              rubric={rubricQuery.data}
+              studentDisplayName={submission.studentDisplayName}
+              suggestions={suggestions}
             />
-          ) : (
-            <div className="h-[calc(100vh-9.5rem)] min-h-[34rem] overflow-y-auto">
-              <HighlightedSubmission
-                text={submission.extractedText ?? ""}
-                suggestions={suggestions}
-                rubric={rubricQuery.data}
-              />
-            </div>
-          )}
+          </Suspense>
         </section>
 
         <aside className="bg-[#f8fafc] lg:h-[calc(100vh-4rem)] lg:overflow-y-auto">
@@ -450,7 +364,14 @@ export default function MarkingPage() {
                         <button
                           className="block w-full border-l-2 bg-sky-50 p-3 text-left hover:bg-sky-100"
                           key={suggestion.id}
-                          onClick={() => setDocumentView("evidence")}
+                          onClick={() =>
+                            document
+                              .getElementById(`pdf-suggestion-${suggestion.id}`)
+                              ?.scrollIntoView({
+                                behavior: "smooth",
+                                block: "center",
+                              })
+                          }
                           style={{ borderColor: criterion.displayColor }}
                           type="button"
                         >
