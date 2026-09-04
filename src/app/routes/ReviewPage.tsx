@@ -76,6 +76,7 @@ export default function ReviewPage() {
     submission.flags.includes("incomplete_grading"),
   )
   const confirmed = Boolean(review.reviewConfirmedAt)
+  const canvasLinked = publication.linked !== false
   const allPublished =
     publication.summary.total > 0 &&
     publication.summary.published === publication.summary.total
@@ -179,7 +180,7 @@ export default function ReviewPage() {
 
         <section className="mt-10 border border-slate-300 bg-white p-6 sm:p-8">
           <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-            Canvas publication
+            {canvasLinked ? "Canvas publication" : "Grade export"}
           </p>
           {confirmed ? (
             <p className="mt-3 font-semibold text-emerald-800">
@@ -215,7 +216,7 @@ export default function ReviewPage() {
               >
                 {confirmReview.isPending ? "Confirming…" : "Confirm review"}
               </button>
-            ) : !allPublished ? (
+            ) : canvasLinked && !allPublished ? (
               <button
                 className="min-h-12 bg-amber-600 px-6 text-sm font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-40"
                 disabled={publishGrades.isPending}
@@ -228,11 +229,20 @@ export default function ReviewPage() {
                     ? "Retry failed grades"
                     : "Publish grades to Canvas"}
               </button>
-            ) : (
+            ) : canvasLinked ? (
               <p className="font-semibold text-emerald-800">
                 All gradeable submissions are published.
               </p>
-            )}
+            ) : null}
+            {confirmed ? (
+              <a
+                className="min-h-12 border border-slate-950 bg-white px-6 py-3 text-sm font-semibold hover:bg-slate-100"
+                download
+                href={`/api/sessions/${id}/export.csv`}
+              >
+                Download grades CSV
+              </a>
+            ) : null}
             {publication.outcomes.length > 0 ? (
               <p className="font-mono text-xs text-slate-600">
                 {publication.summary.published} published ·{" "}

@@ -5,6 +5,9 @@ import { after, before, test } from "node:test"
 import PDFDocument from "pdfkit"
 
 import { createApp } from "../src/app.js"
+import { closeDatabase, createDatabase } from "../src/db/connect.js"
+import { PostgresStore } from "../src/store.js"
+import { FakeObjectStore } from "./fake-object-store.js"
 
 type PdfOptions = {
   text?: string
@@ -302,7 +305,16 @@ const canvasServer = createServer((request, response) => {
   response.writeHead(404).end(JSON.stringify({ error: "Not found" }))
 })
 
-const app = createApp()
+const database = createDatabase(
+  process.env.TEST_DATABASE_URL ?? "postgresql://b2ta:b2ta@localhost:5432/b2ta",
+)
+const objectStore = new FakeObjectStore()
+const app = createApp(
+  new PostgresStore(database),
+  undefined,
+  undefined,
+  objectStore,
+)
 const apiServer = createServer(app)
 let apiBaseUrl = ""
 let canvasBaseUrl = ""
@@ -407,6 +419,7 @@ after(async () => {
       canvasServer.close((error) => (error ? reject(error) : resolve())),
     ),
   ])
+  await closeDatabase(database)
 })
 
 test("TA connects Canvas and imports an assignment rubric", async () => {
@@ -556,14 +569,13 @@ test("TA imports a stable Canvas submission batch with displayable PDFs", async 
 
   const artifactResponse = await fetch(
     `${apiBaseUrl}${batch.submissions[0].artifactUrl}`,
+    { redirect: "manual" },
   )
-  assert.equal(artifactResponse.status, 200)
-  assert.equal(artifactResponse.headers.get("content-type"), "application/pdf")
+  assert.equal(artifactResponse.status, 302)
   assert.match(
-    artifactResponse.headers.get("content-disposition") ?? "",
-    /^inline; filename="alex-hw1.pdf"$/,
+    artifactResponse.headers.get("location") ?? "",
+    /^https:\/\/downloads\.example\.test\//,
   )
-  assert.equal((await artifactResponse.text()).startsWith("%PDF-"), true)
 
   const persistedResponse = await fetch(
     `${apiBaseUrl}/api/sessions/${session.id}/submissions`,

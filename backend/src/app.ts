@@ -12,10 +12,17 @@ import {
   type EvidenceSuggester,
 } from "./evidence.js"
 import {
-  MemoryStore,
+  MAX_PDF_BYTES,
+  submissionObjectKey,
+  type ObjectStore,
+} from "./object-store.js"
+import { parseCanvasRubricCsv, RubricCsvError } from "./rubric-csv.js"
+import {
+  PostgresStore,
   type GradingRecordInput,
   type RubricInput,
 } from "./store.js"
+import { processSubmissionIngestJob } from "./submission-ingest.js"
 import type {
   CanvasPublicationOutcome,
   GradingRecord,
@@ -74,9 +81,47 @@ function parseNumericId(value: unknown): number | null {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null
 }
 
+type UploadFileInput = {
+  filename: string
+  size: number
+  studentDisplayName: string
+}
+
+function parseUploadFiles(value: unknown): UploadFileInput[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 100) {
+    return null
+  }
+  const files = value.map((item) => {
+    if (typeof item !== "object" || item === null) return null
+    const candidate = item as Record<string, unknown>
+    const filename =
+      typeof candidate.filename === "string" ? candidate.filename.trim() : ""
+    const studentDisplayName =
+      typeof candidate.studentDisplayName === "string"
+        ? candidate.studentDisplayName.trim()
+        : ""
+    if (
+      !filename.toLowerCase().endsWith(".pdf") ||
+      filename.length > 255 ||
+      studentDisplayName.length === 0 ||
+      studentDisplayName.length > 200 ||
+      typeof candidate.size !== "number" ||
+      !Number.isSafeInteger(candidate.size) ||
+      candidate.size <= 0 ||
+      candidate.size > MAX_PDF_BYTES
+    ) {
+      return null
+    }
+    return { filename, size: candidate.size, studentDisplayName }
+  })
+  return files.some((file) => file === null)
+    ? null
+    : (files as UploadFileInput[])
+}
+
 function parseGradingRecord(
   value: unknown,
-  rubric: NonNullable<ReturnType<MemoryStore["getRubric"]>>,
+  rubric: Rubric,
 ): GradingRecordInput | null {
   if (typeof value !== "object" || value === null) return null
   const body = value as {
@@ -150,13 +195,23 @@ function pointsForScore(
   )
 }
 
-function reviewData(store: MemoryStore, sessionId: string) {
-  const session = store.getSession(sessionId)
-  const rubric = store.getRubric(sessionId)
+function csvCell(value: string | number | null): string {
+  const text = value === null ? "" : String(value)
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
+}
+
+async function reviewData(store: PostgresStore, sessionId: string) {
+  const [session, rubric, submissions] = await Promise.all([
+    store.getSession(sessionId),
+    store.getRubric(sessionId),
+    store.listSubmissions(sessionId),
+  ])
   if (!session || !rubric) return null
-  const submissions = store.listSubmissions(sessionId)
-  const summaries = submissions.map((submission) => {
-    const record = store.getGradingRecord(submission.id)
+  const records = await Promise.all(
+    submissions.map((submission) => store.getGradingRecord(submission.id)),
+  )
+  const summaries = submissions.map((submission, index) => {
+    const record = records[index]
     const requiresGrade = submission.importStatus === "ready"
     const criterionScores = rubric.criteria.map((criterion) => {
       const score = record?.criterionScores.find(
@@ -208,16 +263,21 @@ function reviewData(store: MemoryStore, sessionId: string) {
   }
 }
 
-function publicationResponse(
-  store: MemoryStore,
+async function publicationResponse(
+  store: PostgresStore,
   sessionId: string,
   skipped = 0,
 ) {
-  const outcomes = store.listPublicationOutcomes(sessionId)
-  const total = store
-    .listSubmissions(sessionId)
-    .filter((submission) => submission.importStatus === "ready").length
+  const [outcomes, submissions, link] = await Promise.all([
+    store.listPublicationOutcomes(sessionId),
+    store.listSubmissions(sessionId),
+    store.getCanvasLink(sessionId),
+  ])
+  const total = submissions.filter(
+    (submission) => submission.importStatus === "ready",
+  ).length
   return {
+    linked: Boolean(link),
     summary: {
       total,
       published: outcomes.filter((outcome) => outcome.status === "published")
@@ -231,7 +291,7 @@ function publicationResponse(
 
 function validateEvidenceCandidates(
   candidates: EvidenceCandidate[],
-  rubric: NonNullable<ReturnType<MemoryStore["getRubric"]>>,
+  rubric: Rubric,
   submissionText: string,
 ) {
   const seen = new Set<string>()
@@ -289,9 +349,10 @@ function validateEvidenceCandidates(
 }
 
 export function createApp(
-  store = new MemoryStore(),
+  store: PostgresStore,
   canvas = new CanvasAdapter(),
   evidenceSuggester: EvidenceSuggester = new BedrockEvidenceSuggester(),
+  objectStore?: ObjectStore,
 ) {
   const app = express()
 
@@ -347,9 +408,12 @@ export function createApp(
 
   app.get(
     "/api/sessions/:id/submissions/:submissionId/grading-record",
-    (request, response) => {
+    async (request, response) => {
       if (
-        !store.getSubmission(request.params.id, request.params.submissionId)
+        !(await store.getSubmission(
+          request.params.id,
+          request.params.submissionId,
+        ))
       ) {
         return sendError(
           response,
@@ -358,7 +422,7 @@ export function createApp(
           "Submission not found",
         )
       }
-      const record = store.getGradingRecord(request.params.submissionId)
+      const record = await store.getGradingRecord(request.params.submissionId)
       if (!record)
         return sendError(
           response,
@@ -372,8 +436,8 @@ export function createApp(
 
   app.put(
     "/api/sessions/:id/submissions/:submissionId/grading-record",
-    (request, response) => {
-      const submission = store.getSubmission(
+    async (request, response) => {
+      const submission = await store.getSubmission(
         request.params.id,
         request.params.submissionId,
       )
@@ -384,7 +448,7 @@ export function createApp(
           "submission_not_found",
           "Submission not found",
         )
-      const rubric = store.getRubric(request.params.id)
+      const rubric = await store.getRubric(request.params.id)
       if (!rubric)
         return sendError(
           response,
@@ -401,13 +465,13 @@ export function createApp(
           "Score every criterion with a rubric level or valid point override",
         )
       return response.json(
-        store.saveGradingRecord(request.params.id, submission.id, input),
+        await store.saveGradingRecord(request.params.id, submission.id, input),
       )
     },
   )
 
-  app.get("/api/sessions/:id/review", (request, response) => {
-    const review = reviewData(store, request.params.id)
+  app.get("/api/sessions/:id/review", async (request, response) => {
+    const review = await reviewData(store, request.params.id)
     if (!review)
       return sendError(
         response,
@@ -418,8 +482,8 @@ export function createApp(
     return response.json(review)
   })
 
-  app.post("/api/sessions/:id/review/confirm", (request, response) => {
-    const review = reviewData(store, request.params.id)
+  app.post("/api/sessions/:id/review/confirm", async (request, response) => {
+    const review = await reviewData(store, request.params.id)
     if (!review)
       return sendError(
         response,
@@ -427,14 +491,17 @@ export function createApp(
         "review_unavailable",
         "Import a rubric before reviewing",
       )
-    const readySubmissions = store
-      .listSubmissions(request.params.id)
-      .filter((submission) => submission.importStatus === "ready")
+    const readySubmissions = (
+      await store.listSubmissions(request.params.id)
+    ).filter((submission) => submission.importStatus === "ready")
+    const gradingRecords = await Promise.all(
+      readySubmissions.map((submission) =>
+        store.getGradingRecord(submission.id),
+      ),
+    )
     if (
       readySubmissions.length === 0 ||
-      readySubmissions.some(
-        (submission) => !store.getGradingRecord(submission.id),
-      )
+      gradingRecords.some((record) => !record)
     ) {
       return sendError(
         response,
@@ -443,26 +510,85 @@ export function createApp(
         "Grade every ready submission before confirming the review",
       )
     }
-    const session = store.confirmReview(request.params.id)
+    const session = await store.confirmReview(request.params.id)
     return response.json({
       ...review,
       reviewConfirmedAt: session!.reviewConfirmedAt,
     })
   })
 
-  app.get("/api/sessions/:id/canvas/publication", (request, response) => {
-    if (!store.getSession(request.params.id)) {
+  app.get("/api/sessions/:id/export.csv", async (request, response) => {
+    const [session, rubric, submissions] = await Promise.all([
+      store.getSession(request.params.id),
+      store.getRubric(request.params.id),
+      store.listSubmissions(request.params.id),
+    ])
+    if (!session || !rubric) {
       return sendError(response, 404, "session_not_found", "Session not found")
     }
-    return response.json(publicationResponse(store, request.params.id))
+    if (!session.reviewConfirmedAt) {
+      return sendError(
+        response,
+        409,
+        "review_not_confirmed",
+        "Confirm the current review before exporting",
+      )
+    }
+    const records = await Promise.all(
+      submissions.map((submission) => store.getGradingRecord(submission.id)),
+    )
+    const header = [
+      "Student",
+      "Original filename",
+      ...rubric.criteria.map((criterion) => criterion.title),
+      "Total",
+      "Overall feedback",
+    ]
+    const rows = submissions.flatMap((submission, index) => {
+      const record = records[index]
+      if (!record) return []
+      const points = rubric.criteria.map((criterion) => {
+        const score = record.criterionScores.find(
+          (item) => item.criterionId === criterion.id,
+        )
+        return score ? pointsForScore(score, rubric) : null
+      })
+      return [
+        [
+          submission.studentDisplayName,
+          submission.originalFilename,
+          ...points,
+          points.reduce<number>((sum, value) => sum + (value ?? 0), 0),
+          record.overallFeedback,
+        ],
+      ]
+    })
+    const csv = [header, ...rows]
+      .map((row) => row.map(csvCell).join(","))
+      .join("\r\n")
+    response.setHeader("Content-Type", "text/csv; charset=utf-8")
+    response.setHeader(
+      "Content-Disposition",
+      `attachment; filename="b2ta-${session.id}-grades.csv"`,
+    )
+    return response.send(`${csv}\r\n`)
+  })
+
+  app.get("/api/sessions/:id/canvas/publication", async (request, response) => {
+    if (!(await store.getSession(request.params.id))) {
+      return sendError(response, 404, "session_not_found", "Session not found")
+    }
+    return response.json(await publicationResponse(store, request.params.id))
   })
 
   app.post(
     "/api/sessions/:id/canvas/publication",
     async (request, response) => {
-      const session = store.getSession(request.params.id)
-      const rubric = store.getRubric(request.params.id)
-      const link = store.getCanvasLink(request.params.id)
+      const [session, rubric, link] = await Promise.all([
+        store.getSession(request.params.id),
+        store.getRubric(request.params.id),
+        store.getCanvasLink(request.params.id),
+      ])
       if (!session || !rubric)
         return sendError(
           response,
@@ -486,12 +612,12 @@ export function createApp(
         )
 
       let skipped = 0
-      for (const submission of store
-        .listSubmissions(request.params.id)
-        .filter((item) => item.importStatus === "ready")) {
-        const record = store.getGradingRecord(submission.id)
+      for (const submission of (
+        await store.listSubmissions(request.params.id)
+      ).filter((item) => item.importStatus === "ready")) {
+        const record = await store.getGradingRecord(submission.id)
         if (!record) continue
-        const existing = store.getPublicationOutcome(
+        const existing = await store.getPublicationOutcome(
           request.params.id,
           submission.id,
         )
@@ -508,7 +634,7 @@ export function createApp(
           await canvas.publishGrade({
             courseId: link.courseId,
             assignmentId: link.assignmentId,
-            studentId: submission.externalStudentId,
+            studentId: submission.externalStudentId!,
             totalPoints: record.criterionScores.reduce(
               (sum, score) => sum + pointsForScore(score, rubric),
               0,
@@ -541,18 +667,18 @@ export function createApp(
             gradingRecordSavedAt: record.savedAt,
           }
         }
-        store.savePublicationOutcome(request.params.id, outcome)
+        await store.savePublicationOutcome(request.params.id, outcome)
       }
       return response.json(
-        publicationResponse(store, request.params.id, skipped),
+        await publicationResponse(store, request.params.id, skipped),
       )
     },
   )
 
   app.get(
     "/api/sessions/:id/submissions/:submissionId/evidence-suggestions",
-    (request, response) => {
-      const submission = store.getSubmission(
+    async (request, response) => {
+      const submission = await store.getSubmission(
         request.params.id,
         request.params.submissionId,
       )
@@ -563,14 +689,14 @@ export function createApp(
           "submission_not_found",
           "Submission not found",
         )
-      return response.json(store.listSuggestions(submission.id))
+      return response.json(await store.listSuggestions(submission.id))
     },
   )
 
   app.post(
     "/api/sessions/:id/submissions/:submissionId/evidence-suggestions",
     async (request, response) => {
-      const submission = store.getSubmission(
+      const submission = await store.getSubmission(
         request.params.id,
         request.params.submissionId,
       )
@@ -581,7 +707,7 @@ export function createApp(
           "submission_not_found",
           "Submission not found",
         )
-      const rubric = store.getRubric(request.params.id)
+      const rubric = await store.getRubric(request.params.id)
       if (!rubric)
         return sendError(
           response,
@@ -601,7 +727,7 @@ export function createApp(
         submissionText: submission.extractedText,
       })
       return response.json(
-        store.saveSuggestions(
+        await store.saveSuggestions(
           submission.id,
           validateEvidenceCandidates(
             candidates,
@@ -613,11 +739,11 @@ export function createApp(
     },
   )
 
-  app.get("/api/sessions", (_request, response) => {
-    response.json(store.listSessions())
+  app.get("/api/sessions", async (_request, response) => {
+    response.json(await store.listSessions())
   })
 
-  app.post("/api/sessions", (request, response) => {
+  app.post("/api/sessions", async (request, response) => {
     const name =
       typeof request.body?.name === "string" ? request.body.name.trim() : ""
     if (name.length === 0 || name.length > 200) {
@@ -629,36 +755,46 @@ export function createApp(
       )
     }
 
-    return response.status(201).json(store.createSession(name))
+    return response.status(201).json(await store.createSession(name))
   })
 
-  app.get("/api/sessions/:id", (request, response) => {
-    const session = store.getSession(request.params.id)
+  app.get("/api/sessions/:id", async (request, response) => {
+    const session = await store.getSession(request.params.id)
     if (!session)
       return sendError(response, 404, "session_not_found", "Session not found")
     return response.json(session)
   })
 
-  app.delete("/api/sessions/:id", (request, response) => {
-    if (!store.deleteSession(request.params.id)) {
+  app.delete("/api/sessions/:id", async (request, response) => {
+    const submissions = await store.listSubmissions(request.params.id)
+    if (objectStore) {
+      await Promise.all(
+        submissions.flatMap((submission) =>
+          submission.storageKey
+            ? [objectStore.delete(submission.storageKey)]
+            : [],
+        ),
+      )
+    }
+    if (!(await store.deleteSession(request.params.id))) {
       return sendError(response, 404, "session_not_found", "Session not found")
     }
     return response.sendStatus(204)
   })
 
-  app.get("/api/sessions/:id/rubric", (request, response) => {
-    if (!store.getSession(request.params.id)) {
+  app.get("/api/sessions/:id/rubric", async (request, response) => {
+    if (!(await store.getSession(request.params.id))) {
       return sendError(response, 404, "session_not_found", "Session not found")
     }
 
-    const rubric = store.getRubric(request.params.id)
+    const rubric = await store.getRubric(request.params.id)
     if (!rubric)
       return sendError(response, 404, "rubric_not_found", "Rubric not found")
     return response.json(rubric)
   })
 
-  app.put("/api/sessions/:id/rubric", (request, response) => {
-    if (!store.getSession(request.params.id)) {
+  app.put("/api/sessions/:id/rubric", async (request, response) => {
+    if (!(await store.getSession(request.params.id))) {
       return sendError(response, 404, "session_not_found", "Session not found")
     }
     if (!isRubricInput(request.body)) {
@@ -670,11 +806,171 @@ export function createApp(
       )
     }
 
-    return response.json(store.saveRubric(request.params.id, request.body))
+    return response.json(
+      await store.saveRubric(request.params.id, request.body),
+    )
+  })
+
+  app.post(
+    "/api/sessions/:id/rubric/import/preview",
+    async (request, response) => {
+      if (!(await store.getSession(request.params.id))) {
+        return sendError(
+          response,
+          404,
+          "session_not_found",
+          "Session not found",
+        )
+      }
+      if (
+        request.body?.format !== "canvas_csv" ||
+        typeof request.body?.csv !== "string"
+      ) {
+        return sendError(
+          response,
+          400,
+          "invalid_rubric_csv",
+          "Provide a Canvas rubric CSV",
+        )
+      }
+      return response.json(parseCanvasRubricCsv(request.body.csv))
+    },
+  )
+
+  app.post(
+    "/api/sessions/:id/submission-uploads",
+    async (request, response) => {
+      if (!(await store.getSession(request.params.id))) {
+        return sendError(
+          response,
+          404,
+          "session_not_found",
+          "Session not found",
+        )
+      }
+      if (!objectStore) {
+        return sendError(
+          response,
+          503,
+          "object_store_unavailable",
+          "Document storage is not configured",
+        )
+      }
+      const files = parseUploadFiles(request.body?.files)
+      if (!files) {
+        return sendError(
+          response,
+          400,
+          "invalid_submission_files",
+          "Upload 1 to 100 PDF files, each no larger than 25 MiB",
+        )
+      }
+      const submissions = await store.reserveSubmissionBatch(
+        request.params.id,
+        files.map((file) => ({
+          originalFilename: file.filename,
+          studentDisplayName: file.studentDisplayName,
+          externalStudentId: null,
+          externalSubmissionId: null,
+          identityStatus: "unverified",
+          importStatus: "failed",
+          submissionType: "pdf",
+          attemptCount: 1,
+          submittedAt: null,
+          extractionStatus: "pending",
+          extractionFailureReason: null,
+          extractedText: null,
+          extractedCharCount: null,
+          isOversized: false,
+        })),
+      )
+      const uploads = await Promise.all(
+        submissions.map(async (submission) => {
+          const storageKey = submissionObjectKey(
+            request.params.id,
+            submission.id,
+          )
+          const updated = await store.updateSubmission(
+            request.params.id,
+            submission.id,
+            { storageKey },
+          )
+          return {
+            submission: updated,
+            uploadUrl: await objectStore.createUploadUrl(
+              storageKey,
+              "application/pdf",
+            ),
+          }
+        }),
+      )
+      return response.status(201).json({ uploads })
+    },
+  )
+
+  app.post(
+    "/api/sessions/:id/submission-import-jobs",
+    async (request, response) => {
+      if (!(await store.getSession(request.params.id))) {
+        return sendError(
+          response,
+          404,
+          "session_not_found",
+          "Session not found",
+        )
+      }
+      if (!objectStore) {
+        return sendError(
+          response,
+          503,
+          "object_store_unavailable",
+          "Document storage is not configured",
+        )
+      }
+      const pending = (await store.listSubmissions(request.params.id)).filter(
+        (submission) => submission.extractionStatus === "pending",
+      )
+      if (pending.length === 0) {
+        return sendError(
+          response,
+          409,
+          "no_pending_submissions",
+          "No uploaded submissions are waiting for extraction",
+        )
+      }
+      const job = await store.createJob(
+        request.params.id,
+        "submission_ingest",
+        pending.length,
+      )
+      void processSubmissionIngestJob(store, objectStore, job.id)
+      return response.status(202).json(job)
+    },
+  )
+
+  app.get("/api/jobs/:id", async (request, response) => {
+    const job = await store.getJob(request.params.id)
+    if (!job) return sendError(response, 404, "job_not_found", "Job not found")
+    return response.json(job)
+  })
+
+  app.post("/api/jobs/:id/run", async (request, response) => {
+    const job = await store.getJob(request.params.id)
+    if (!job) return sendError(response, 404, "job_not_found", "Job not found")
+    if (!objectStore) {
+      return sendError(
+        response,
+        503,
+        "object_store_unavailable",
+        "Document storage is not configured",
+      )
+    }
+    await processSubmissionIngestJob(store, objectStore, job.id)
+    return response.json(await store.getJob(job.id))
   })
 
   app.post("/api/sessions/:id/canvas/import", async (request, response) => {
-    if (!store.getSession(request.params.id)) {
+    if (!(await store.getSession(request.params.id))) {
       return sendError(response, 404, "session_not_found", "Session not found")
     }
     const courseId = parseNumericId(request.body?.courseId)
@@ -698,7 +994,7 @@ export function createApp(
       )
     }
 
-    const rubric = store.saveRubric(request.params.id, {
+    const rubric = await store.saveRubric(request.params.id, {
       sourceFormat: "canvas",
       criteria: assignment.rubric.map((criterion) => ({
         title: criterion.description,
@@ -711,7 +1007,7 @@ export function createApp(
         })),
       })),
     })
-    store.saveCanvasLink(request.params.id, {
+    await store.saveCanvasLink(request.params.id, {
       courseId,
       assignmentId,
       criterionIds: Object.fromEntries(
@@ -727,7 +1023,7 @@ export function createApp(
   app.post(
     "/api/sessions/:id/canvas/submissions/import",
     async (request, response) => {
-      if (!store.getSession(request.params.id)) {
+      if (!(await store.getSession(request.params.id))) {
         return sendError(
           response,
           404,
@@ -747,7 +1043,29 @@ export function createApp(
       }
 
       const imported = await canvas.importSubmissions(courseId, assignmentId)
-      const submissions = store.saveSubmissionBatch(request.params.id, imported)
+      const submissions = await store.saveSubmissionBatch(
+        request.params.id,
+        imported.map(({ artifact: _artifact, ...submission }) => submission),
+      )
+      for (const [index, submission] of submissions.entries()) {
+        const artifact = imported[index].artifact
+        if (!artifact) continue
+        if (!objectStore) {
+          return sendError(
+            response,
+            503,
+            "object_store_unavailable",
+            "Document storage is not configured",
+          )
+        }
+        const storageKey = submissionObjectKey(request.params.id, submission.id)
+        await objectStore.put(storageKey, artifact.data, artifact.contentType)
+        submissions[index] = (await store.updateSubmission(
+          request.params.id,
+          submission.id,
+          { storageKey },
+        ))!
+      }
       return response.json({
         summary: {
           totalStudents: submissions.length,
@@ -765,17 +1083,17 @@ export function createApp(
     },
   )
 
-  app.get("/api/sessions/:id/submissions", (request, response) => {
-    if (!store.getSession(request.params.id)) {
+  app.get("/api/sessions/:id/submissions", async (request, response) => {
+    if (!(await store.getSession(request.params.id))) {
       return sendError(response, 404, "session_not_found", "Session not found")
     }
-    return response.json(store.listSubmissions(request.params.id))
+    return response.json(await store.listSubmissions(request.params.id))
   })
 
   app.get(
     "/api/sessions/:id/submissions/:submissionId/artifact",
-    (request, response) => {
-      if (!store.getSession(request.params.id)) {
+    async (request, response) => {
+      if (!(await store.getSession(request.params.id))) {
         return sendError(
           response,
           404,
@@ -783,11 +1101,11 @@ export function createApp(
           "Session not found",
         )
       }
-      const artifact = store.getSubmissionArtifact(
+      const submission = await store.getSubmission(
         request.params.id,
         request.params.submissionId,
       )
-      if (!artifact) {
+      if (!submission?.storageKey || !objectStore) {
         return sendError(
           response,
           404,
@@ -795,16 +1113,10 @@ export function createApp(
           "Submission artifact not found",
         )
       }
-      const filename = artifact.filename.replace(
-        /[^\x20-\x21\x23-\x5b\x5d-\x7e]/g,
-        "_",
+      return response.redirect(
+        302,
+        await objectStore.createDownloadUrl(submission.storageKey),
       )
-      response.setHeader("Content-Type", artifact.contentType)
-      response.setHeader(
-        "Content-Disposition",
-        `inline; filename="${filename}"`,
-      )
-      return response.send(artifact.data)
     },
   )
 
@@ -828,6 +1140,9 @@ export function createApp(
           "evidence_suggestion_failed",
           error.message,
         )
+      }
+      if (error instanceof RubricCsvError) {
+        return sendError(response, 400, "invalid_rubric_csv", error.message)
       }
       console.error(error)
       return sendError(

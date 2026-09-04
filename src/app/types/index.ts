@@ -75,7 +75,7 @@ export interface Submission {
   storageKey: string | null
   originalFilename: string
   studentDisplayName: string
-  externalStudentId: string
+  externalStudentId: string | null
   externalSubmissionId: string | null
   identityStatus: IdentityStatus
   importStatus: "ready" | "missing" | "failed"
@@ -199,6 +199,7 @@ export interface CanvasPublicationOutcome {
 }
 
 export interface CanvasPublication {
+  linked?: boolean
   summary: {
     total: number
     published: number

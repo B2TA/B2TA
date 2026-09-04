@@ -1,0 +1,1 @@
+ALTER TABLE "submissions" ALTER COLUMN "external_student_id" DROP NOT NULL;

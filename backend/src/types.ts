@@ -33,7 +33,7 @@ export type Rubric = {
   id: string
   sessionId: string
   storageKey: string | null
-  sourceFormat: "manual" | "canvas"
+  sourceFormat: "manual" | "canvas" | "csv"
   criteria: Criterion[]
   createdAt: string
   updatedAt: string
@@ -45,7 +45,7 @@ export type Submission = {
   storageKey: string | null
   originalFilename: string
   studentDisplayName: string
-  externalStudentId: string
+  externalStudentId: string | null
   externalSubmissionId: string | null
   identityStatus: "verified" | "unverified" | "disambiguation_required"
   importStatus: "ready" | "missing" | "failed"
@@ -98,4 +98,17 @@ export type SuggestedMatch = {
   rationale: string
   confidence: number
   createdAt: string
+}
+
+export type AsyncJob = {
+  id: string
+  sessionId: string
+  type: "submission_ingest"
+  status: "pending" | "running" | "completed" | "failed"
+  totalItems: number
+  completedItems: number
+  failedItems: number
+  error: string | null
+  createdAt: string
+  updatedAt: string
 }

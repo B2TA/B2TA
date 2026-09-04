@@ -3,9 +3,13 @@ import { after, before, test } from "node:test"
 import type { AddressInfo } from "node:net"
 
 import { createApp } from "../src/app.js"
-import { MemoryStore } from "../src/store.js"
+import { createDatabase, closeDatabase } from "../src/db/connect.js"
+import { PostgresStore } from "../src/store.js"
 
-const app = createApp()
+const database = createDatabase(
+  process.env.TEST_DATABASE_URL ?? "postgresql://b2ta:b2ta@localhost:5432/b2ta",
+)
+const app = createApp(new PostgresStore(database))
 const server = app.listen(0, "127.0.0.1")
 let baseUrl = ""
 
@@ -19,6 +23,7 @@ after(async () => {
   await new Promise<void>((resolve, reject) => {
     server.close((error) => (error ? reject(error) : resolve()))
   })
+  await closeDatabase(database)
 })
 
 test("health check", async () => {
@@ -49,8 +54,7 @@ test("session, rubric, and submission workflow", async () => {
 
   const listResponse = await fetch(`${baseUrl}/api/sessions`)
   const sessions = (await listResponse.json()) as Array<{ id: string }>
-  assert.equal(sessions.length, 1)
-  assert.equal(sessions[0].id, session.id)
+  assert.ok(sessions.some((item) => item.id === session.id))
 
   const rubricResponse = await fetch(
     `${baseUrl}/api/sessions/${session.id}/rubric`,
@@ -93,7 +97,7 @@ test("session, rubric, and submission workflow", async () => {
 })
 
 test("TA saves, updates, and reloads one canonical grading record", async () => {
-  const gradingStore = new MemoryStore()
+  const gradingStore = new PostgresStore(database)
   const gradingApp = createApp(gradingStore)
   const gradingServer = gradingApp.listen(0, "127.0.0.1")
   await new Promise<void>((resolve) => gradingServer.once("listening", resolve))
@@ -101,8 +105,8 @@ test("TA saves, updates, and reloads one canonical grading record", async () => 
   const gradingBaseUrl = `http://127.0.0.1:${address.port}`
 
   try {
-    const session = gradingStore.createSession("WRDS 150 Essay")
-    const rubric = gradingStore.saveRubric(session.id, {
+    const session = await gradingStore.createSession("WRDS 150 Essay")
+    const rubric = await gradingStore.saveRubric(session.id, {
       criteria: [
         {
           title: "Thesis clarity",
@@ -114,7 +118,7 @@ test("TA saves, updates, and reloads one canonical grading record", async () => 
         },
       ],
     })
-    const [submission] = gradingStore.saveSubmissionBatch(session.id, [
+    const [submission] = await gradingStore.saveSubmissionBatch(session.id, [
       {
         originalFilename: "alex-essay.pdf",
         studentDisplayName: "Alex Able",
@@ -130,11 +134,7 @@ test("TA saves, updates, and reloads one canonical grading record", async () => 
         extractedText: "A clear thesis.",
         extractedCharCount: 15,
         isOversized: false,
-        artifact: {
-          data: Buffer.from("%PDF-1.4 fixture"),
-          contentType: "application/pdf",
-          filename: "alex-essay.pdf",
-        },
+        storageKey: "test/alex-essay.pdf",
       },
     ])
 

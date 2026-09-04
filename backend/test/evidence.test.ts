@@ -3,13 +3,17 @@ import { after, before, test } from "node:test"
 import type { AddressInfo } from "node:net"
 
 import { createApp } from "../src/app.js"
+import { closeDatabase, createDatabase } from "../src/db/connect.js"
 import {
   BedrockEvidenceSuggester,
   type EvidenceSuggester,
 } from "../src/evidence.js"
-import { MemoryStore } from "../src/store.js"
+import { PostgresStore } from "../src/store.js"
 
-const store = new MemoryStore()
+const database = createDatabase(
+  process.env.TEST_DATABASE_URL ?? "postgresql://b2ta:b2ta@localhost:5432/b2ta",
+)
+const store = new PostgresStore(database)
 const model: EvidenceSuggester = {
   async suggest({ rubric, submissionText }) {
     assert.equal(submissionText, "A clear thesis. Evidence follows.")
@@ -41,11 +45,11 @@ let endpoint = ""
 before(async () => {
   await new Promise<void>((resolve) => server.once("listening", resolve))
   baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
-  const session = store.createSession("WRDS 150 Essay")
-  const rubric = store.saveRubric(session.id, {
+  const session = await store.createSession("WRDS 150 Essay")
+  const rubric = await store.saveRubric(session.id, {
     criteria: [{ title: "Thesis clarity", maxPoints: 5 }],
   })
-  const [submission] = store.saveSubmissionBatch(session.id, [
+  const [submission] = await store.saveSubmissionBatch(session.id, [
     {
       originalFilename: "alex.pdf",
       studentDisplayName: "Alex Able",
@@ -61,7 +65,7 @@ before(async () => {
       extractedText: "A clear thesis. Evidence follows.",
       extractedCharCount: 33,
       isOversized: false,
-      artifact: null,
+      storageKey: null,
     },
   ])
   endpoint = `${baseUrl}/api/sessions/${session.id}/submissions/${submission.id}/evidence-suggestions`
@@ -72,6 +76,7 @@ after(async () => {
   await new Promise<void>((resolve, reject) =>
     server.close((error) => (error ? reject(error) : resolve())),
   )
+  await closeDatabase(database)
 })
 
 test("AI suggestions are validated and never author a score", async () => {

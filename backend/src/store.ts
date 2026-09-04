@@ -1,6 +1,23 @@
 import { randomUUID } from "node:crypto"
 
+import { and, asc, desc, eq, inArray } from "drizzle-orm"
+
+import type { Database } from "./db/connect.js"
+import {
+  asyncJobs,
+  canvasAssignmentLinks,
+  canvasPublicationOutcomes,
+  criteria,
+  criterionScores,
+  gradingRecords,
+  gradingSessions,
+  performanceLevels,
+  rubrics,
+  submissions,
+  suggestedMatches,
+} from "./db/schema.js"
 import type {
+  AsyncJob,
   CanvasPublicationOutcome,
   Criterion,
   GradingRecord,
@@ -16,12 +33,8 @@ export type CanvasAssignmentLink = {
   criterionIds: Record<string, string>
 }
 
-export type SubmissionInput = Omit<Submission, "id" | "sessionId" | "createdAt" | "artifactUrl" | "storageKey" | "position"> & {
-  artifact: {
-    data: Buffer
-    contentType: "application/pdf"
-    filename: string
-  } | null
+export type SubmissionInput = Omit<Submission, "id" | "sessionId" | "createdAt" | "artifactUrl" | "position" | "storageKey"> & {
+  storageKey?: string | null
 }
 
 export type SubmissionArtifact = {
@@ -30,10 +43,8 @@ export type SubmissionArtifact = {
   filename: string
 }
 
-const CRITERION_COLORS = ["#B45309", "#0F766E", "#7E22CE", "#B91C1C", "#0369A1"]
-
 export type RubricInput = {
-  sourceFormat?: "manual" | "canvas"
+  sourceFormat?: "manual" | "canvas" | "csv"
   criteria: Array<{
     title: string
     description?: string
@@ -56,101 +67,214 @@ export type GradingRecordInput = {
   }>
 }
 
-export class MemoryStore {
-  readonly #sessions = new Map<string, Session>()
-  readonly #rubrics = new Map<string, Rubric>()
-  readonly #submissions = new Map<string, Submission[]>()
-  readonly #artifacts = new Map<string, SubmissionArtifact>()
-  readonly #gradingRecords = new Map<string, GradingRecord>()
-  readonly #suggestions = new Map<string, SuggestedMatch[]>()
-  readonly #canvasLinks = new Map<string, CanvasAssignmentLink>()
-  readonly #publicationOutcomes =
-    new Map<string, Map<string, CanvasPublicationOutcome>>()
+export type SubmissionUpdate = Partial<Pick<Submission, "storageKey" | "importStatus" | "extractionStatus" | "extractionFailureReason" | "extractedText" | "extractedCharCount" | "isOversized">>
 
-  listSessions(): Session[] {
-    return [...this.#sessions.values()].sort((a, b) =>
-      b.createdAt.localeCompare(a.createdAt),
+export type JobUpdate = Partial<Pick<AsyncJob, "status" | "completedItems" | "failedItems" | "error">>
+
+const CRITERION_COLORS = ["#B45309", "#0F766E", "#7E22CE", "#B91C1C", "#0369A1"]
+
+function iso(value: string): string {
+  return new Date(value).toISOString()
+}
+
+function mapSession(row: typeof gradingSessions.$inferSelect): Session {
+  return {
+    ...row,
+    reviewConfirmedAt: row.reviewConfirmedAt
+      ? iso(row.reviewConfirmedAt)
+      : null,
+    createdAt: iso(row.createdAt),
+    updatedAt: iso(row.updatedAt),
+  }
+}
+
+function mapSubmission(row: typeof submissions.$inferSelect): Submission {
+  return {
+    ...row,
+    identityStatus: row.identityStatus as Submission["identityStatus"],
+    importStatus: row.importStatus as Submission["importStatus"],
+    submissionType: row.submissionType as Submission["submissionType"],
+    extractionStatus: row.extractionStatus as Submission["extractionStatus"],
+    submittedAt: row.submittedAt ? iso(row.submittedAt) : null,
+    artifactUrl: row.storageKey
+      ? `/api/sessions/${row.sessionId}/submissions/${row.id}/artifact`
+      : null,
+    createdAt: iso(row.createdAt),
+  }
+}
+
+function mapJob(row: typeof asyncJobs.$inferSelect): AsyncJob {
+  return {
+    ...row,
+    type: row.type as AsyncJob["type"],
+    status: row.status as AsyncJob["status"],
+    createdAt: iso(row.createdAt),
+    updatedAt: iso(row.updatedAt),
+  }
+}
+
+export class PostgresStore {
+  constructor(readonly database: Database) {}
+
+  async listSessions(): Promise<Session[]> {
+    return (
+      await this.database
+        .select()
+        .from(gradingSessions)
+        .orderBy(desc(gradingSessions.createdAt))
+    ).map(mapSession)
+  }
+
+  async createSession(name: string): Promise<Session> {
+    const [row] = await this.database
+      .insert(gradingSessions)
+      .values({ id: randomUUID(), taId: "local-ta", name })
+      .returning()
+    return mapSession(row)
+  }
+
+  async getSession(id: string): Promise<Session | undefined> {
+    const [row] = await this.database
+      .select()
+      .from(gradingSessions)
+      .where(eq(gradingSessions.id, id))
+      .limit(1)
+    return row ? mapSession(row) : undefined
+  }
+
+  async deleteSession(id: string): Promise<boolean> {
+    return (
+      (
+        await this.database
+          .delete(gradingSessions)
+          .where(eq(gradingSessions.id, id))
+          .returning({ id: gradingSessions.id })
+      ).length > 0
     )
   }
 
-  createSession(name: string): Session {
-    const now = new Date().toISOString()
-    const session: Session = {
-      id: randomUUID(),
-      taId: "local-ta",
-      name,
-      reviewConfirmedAt: null,
-      createdAt: now,
-      updatedAt: now,
-    }
-
-    this.#sessions.set(session.id, session)
-    this.#submissions.set(session.id, [])
-    return session
+  async getCanvasLink(
+    sessionId: string,
+  ): Promise<CanvasAssignmentLink | undefined> {
+    const [row] = await this.database
+      .select()
+      .from(canvasAssignmentLinks)
+      .where(eq(canvasAssignmentLinks.sessionId, sessionId))
+      .limit(1)
+    return row
   }
 
-  getSession(id: string): Session | undefined {
-    return this.#sessions.get(id)
-  }
-
-  deleteSession(id: string): boolean {
-    for (const submission of this.#submissions.get(id) ?? []) {
-      this.#artifacts.delete(submission.id)
-      this.#gradingRecords.delete(submission.id)
-      this.#suggestions.delete(submission.id)
-    }
-    this.#rubrics.delete(id)
-    this.#submissions.delete(id)
-    this.#canvasLinks.delete(id)
-    this.#publicationOutcomes.delete(id)
-    return this.#sessions.delete(id)
-  }
-
-  getCanvasLink(sessionId: string): CanvasAssignmentLink | undefined {
-    return this.#canvasLinks.get(sessionId)
-  }
-
-  saveCanvasLink(sessionId: string, link: CanvasAssignmentLink): void {
-    this.#canvasLinks.set(sessionId, link)
-    this.#publicationOutcomes.delete(sessionId)
-  }
-
-  confirmReview(sessionId: string): Session | undefined {
-    const session = this.#sessions.get(sessionId)
-    if (!session) return undefined
-    const now = new Date().toISOString()
-    const confirmed = {
-      ...session,
-      reviewConfirmedAt: now,
-      updatedAt: now,
-    }
-    this.#sessions.set(sessionId, confirmed)
-    return confirmed
-  }
-
-  invalidateReview(sessionId: string): void {
-    const session = this.#sessions.get(sessionId)
-    if (!session?.reviewConfirmedAt) return
-    this.#sessions.set(sessionId, {
-      ...session,
-      reviewConfirmedAt: null,
-      updatedAt: new Date().toISOString(),
+  async saveCanvasLink(
+    sessionId: string,
+    link: CanvasAssignmentLink,
+  ): Promise<void> {
+    await this.database.transaction(async (tx) => {
+      await tx
+        .insert(canvasAssignmentLinks)
+        .values({ sessionId, ...link })
+        .onConflictDoUpdate({
+          target: canvasAssignmentLinks.sessionId,
+          set: link,
+        })
+      await tx
+        .delete(canvasPublicationOutcomes)
+        .where(eq(canvasPublicationOutcomes.sessionId, sessionId))
     })
   }
 
-  getRubric(sessionId: string): Rubric | undefined {
-    return this.#rubrics.get(sessionId)
+  async confirmReview(sessionId: string): Promise<Session | undefined> {
+    const now = new Date().toISOString()
+    const [row] = await this.database
+      .update(gradingSessions)
+      .set({ reviewConfirmedAt: now, updatedAt: now })
+      .where(eq(gradingSessions.id, sessionId))
+      .returning()
+    return row ? mapSession(row) : undefined
   }
 
-  saveRubric(sessionId: string, input: RubricInput): Rubric {
-    const existing = this.#rubrics.get(sessionId)
-    const now = new Date().toISOString()
-    const rubricId = existing?.id ?? randomUUID()
+  async invalidateReview(sessionId: string): Promise<void> {
+    await this.database
+      .update(gradingSessions)
+      .set({ reviewConfirmedAt: null, updatedAt: new Date().toISOString() })
+      .where(eq(gradingSessions.id, sessionId))
+  }
 
-    const criteria: Criterion[] = input.criteria.map(
-      (criterion, criterionIndex) => {
+  async getRubric(sessionId: string): Promise<Rubric | undefined> {
+    const [rubricRow] = await this.database
+      .select()
+      .from(rubrics)
+      .where(eq(rubrics.sessionId, sessionId))
+      .limit(1)
+    if (!rubricRow) return undefined
+    const criterionRows = await this.database
+      .select()
+      .from(criteria)
+      .where(eq(criteria.rubricId, rubricRow.id))
+      .orderBy(asc(criteria.position))
+    const criterionIds = criterionRows.map((row) => row.id)
+    const levelRows = criterionIds.length
+      ? await this.database
+          .select()
+          .from(performanceLevels)
+          .where(inArray(performanceLevels.criterionId, criterionIds))
+          .orderBy(asc(performanceLevels.position))
+      : []
+    return {
+      ...rubricRow,
+      sourceFormat: rubricRow.sourceFormat as Rubric["sourceFormat"],
+      createdAt: iso(rubricRow.createdAt),
+      updatedAt: iso(rubricRow.updatedAt),
+      criteria: criterionRows.map(
+        (criterion): Criterion => ({
+          ...criterion,
+          createdAt: iso(criterion.createdAt),
+          performanceLevels: levelRows.filter(
+            (level) => level.criterionId === criterion.id,
+          ),
+        }),
+      ),
+    }
+  }
+
+  async saveRubric(sessionId: string, input: RubricInput): Promise<Rubric> {
+    await this.database.transaction(async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(rubrics)
+        .where(eq(rubrics.sessionId, sessionId))
+        .limit(1)
+      const rubricId = existing?.id ?? randomUUID()
+      const now = new Date().toISOString()
+      if (existing) {
+        await tx
+          .delete(gradingRecords)
+          .where(
+            inArray(
+              gradingRecords.submissionId,
+              tx
+                .select({ id: submissions.id })
+                .from(submissions)
+                .where(eq(submissions.sessionId, sessionId)),
+            ),
+          )
+        await tx.delete(criteria).where(eq(criteria.rubricId, rubricId))
+        await tx
+          .update(rubrics)
+          .set({ sourceFormat: input.sourceFormat ?? "manual", updatedAt: now })
+          .where(eq(rubrics.id, rubricId))
+      } else {
+        await tx.insert(rubrics).values({
+          id: rubricId,
+          sessionId,
+          storageKey: null,
+          sourceFormat: input.sourceFormat ?? "manual",
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
+      for (const [criterionIndex, criterion] of input.criteria.entries()) {
         const criterionId = randomUUID()
-        return {
+        await tx.insert(criteria).values({
           id: criterionId,
           rubricId,
           title: criterion.title.trim(),
@@ -161,167 +285,330 @@ export class MemoryStore {
           position: criterionIndex,
           requiresCompletion: criterion.maxPoints == null,
           createdAt: now,
-          performanceLevels: (criterion.performanceLevels ?? []).map(
-            (level, levelIndex) => ({
+        })
+        if (criterion.performanceLevels?.length) {
+          await tx.insert(performanceLevels).values(
+            criterion.performanceLevels.map((level, position) => ({
               id: randomUUID(),
               criterionId,
               label: level.label.trim(),
               description: level.description?.trim() ?? "",
               points: level.points ?? null,
-              position: levelIndex,
-            }),
-          ),
+              position,
+            })),
+          )
         }
-      },
-    )
-
-    const rubric: Rubric = {
-      id: rubricId,
-      sessionId,
-      storageKey: null,
-      sourceFormat: input.sourceFormat ?? "manual",
-      criteria,
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
-    }
-
-    this.#rubrics.set(sessionId, rubric)
-    this.invalidateReview(sessionId)
-    this.#publicationOutcomes.delete(sessionId)
-    return rubric
+      }
+      await tx
+        .update(gradingSessions)
+        .set({ reviewConfirmedAt: null, updatedAt: now })
+        .where(eq(gradingSessions.id, sessionId))
+      await tx
+        .delete(canvasPublicationOutcomes)
+        .where(eq(canvasPublicationOutcomes.sessionId, sessionId))
+    })
+    return (await this.getRubric(sessionId))!
   }
 
-  listSubmissions(sessionId: string): Submission[] {
-    return this.#submissions.get(sessionId) ?? []
+  async listSubmissions(sessionId: string): Promise<Submission[]> {
+    return (
+      await this.database
+        .select()
+        .from(submissions)
+        .where(eq(submissions.sessionId, sessionId))
+        .orderBy(asc(submissions.position))
+    ).map(mapSubmission)
   }
 
-  getSubmission(
+  async getSubmission(
     sessionId: string,
     submissionId: string,
-  ): Submission | undefined {
-    return this.listSubmissions(sessionId).find(
-      (item) => item.id === submissionId,
-    )
+  ): Promise<Submission | undefined> {
+    const [row] = await this.database
+      .select()
+      .from(submissions)
+      .where(
+        and(
+          eq(submissions.sessionId, sessionId),
+          eq(submissions.id, submissionId),
+        ),
+      )
+      .limit(1)
+    return row ? mapSubmission(row) : undefined
   }
 
-  saveSubmissionBatch(
+  async saveSubmissionBatch(
     sessionId: string,
     input: SubmissionInput[],
-  ): Submission[] {
-    for (const submission of this.#submissions.get(sessionId) ?? []) {
-      this.#artifacts.delete(submission.id)
-      this.#gradingRecords.delete(submission.id)
-      this.#suggestions.delete(submission.id)
-    }
-    const now = new Date().toISOString()
-    const submissions = input.map(({ artifact, ...item }, position) => {
-      const id = randomUUID()
-      if (artifact) this.#artifacts.set(id, artifact)
-      return {
-        ...item,
-        id,
-        sessionId,
-        storageKey: artifact ? `memory://${id}` : null,
-        artifactUrl: artifact
-          ? `/api/sessions/${sessionId}/submissions/${id}/artifact`
-          : null,
-        position,
-        createdAt: now,
-      }
+  ): Promise<Submission[]> {
+    await this.database.transaction(async (tx) => {
+      await tx.delete(submissions).where(eq(submissions.sessionId, sessionId))
+      if (input.length) await tx.insert(submissions).values(
+          input.map((item, position) => ({
+            id: randomUUID(),
+            sessionId,
+            position,
+            ...item,
+          })),
+        )
+      const now = new Date().toISOString()
+      await tx
+        .update(gradingSessions)
+        .set({ reviewConfirmedAt: null, updatedAt: now })
+        .where(eq(gradingSessions.id, sessionId))
+      await tx
+        .delete(canvasPublicationOutcomes)
+        .where(eq(canvasPublicationOutcomes.sessionId, sessionId))
     })
-    this.#submissions.set(sessionId, submissions)
-    this.invalidateReview(sessionId)
-    this.#publicationOutcomes.delete(sessionId)
-    return submissions
+    return this.listSubmissions(sessionId)
   }
 
-  getSubmissionArtifact(
+  async reserveSubmissionBatch(
+    sessionId: string,
+    input: SubmissionInput[],
+  ): Promise<Submission[]> {
+    return this.saveSubmissionBatch(sessionId, input)
+  }
+
+  async updateSubmission(
     sessionId: string,
     submissionId: string,
-  ): SubmissionArtifact | undefined {
-    const belongsToSession = (this.#submissions.get(sessionId) ?? []).some(
-      (submission) => submission.id === submissionId,
-    )
-    return belongsToSession ? this.#artifacts.get(submissionId) : undefined
+    update: SubmissionUpdate,
+  ): Promise<Submission | undefined> {
+    const [row] = await this.database
+      .update(submissions)
+      .set(update)
+      .where(
+        and(
+          eq(submissions.sessionId, sessionId),
+          eq(submissions.id, submissionId),
+        ),
+      )
+      .returning()
+    return row ? mapSubmission(row) : undefined
   }
 
-  getGradingRecord(submissionId: string): GradingRecord | undefined {
-    return this.#gradingRecords.get(submissionId)
+  async getGradingRecord(
+    submissionId: string,
+  ): Promise<GradingRecord | undefined> {
+    const [record] = await this.database
+      .select()
+      .from(gradingRecords)
+      .where(eq(gradingRecords.submissionId, submissionId))
+      .limit(1)
+    if (!record) return undefined
+    const scores = await this.database
+      .select()
+      .from(criterionScores)
+      .where(eq(criterionScores.gradingRecordId, record.id))
+    return {
+      ...record,
+      savedAt: iso(record.savedAt),
+      createdAt: iso(record.createdAt),
+      criterionScores: scores,
+    }
   }
 
-  saveGradingRecord(
+  async saveGradingRecord(
     sessionId: string,
     submissionId: string,
     input: GradingRecordInput,
-  ): GradingRecord {
-    const existing = this.#gradingRecords.get(submissionId)
-    const now = new Date().toISOString()
-    const gradingRecordId = existing?.id ?? randomUUID()
-    const record: GradingRecord = {
-      id: gradingRecordId,
-      submissionId,
-      overallFeedback: input.overallFeedback,
-      criterionScores: input.criterionScores.map((score) => ({
-        ...score,
-        id:
-          existing?.criterionScores.find(
-            (item) => item.criterionId === score.criterionId,
-          )?.id ?? randomUUID(),
-        gradingRecordId,
-      })),
-      savedAt: now,
-      createdAt: existing?.createdAt ?? now,
-    }
-    this.#gradingRecords.set(submissionId, record)
-    this.invalidateReview(sessionId)
-    this.#publicationOutcomes.get(sessionId)?.delete(submissionId)
-    return record
-  }
-
-  listPublicationOutcomes(sessionId: string): CanvasPublicationOutcome[] {
-    const outcomes = this.#publicationOutcomes.get(sessionId)
-    if (!outcomes) return []
-    return this.listSubmissions(sessionId).flatMap((submission) => {
-      const outcome = outcomes.get(submission.id)
-      return outcome ? [outcome] : []
+  ): Promise<GradingRecord> {
+    await this.database.transaction(async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(gradingRecords)
+        .where(eq(gradingRecords.submissionId, submissionId))
+        .limit(1)
+      const id = existing?.id ?? randomUUID()
+      const now = new Date().toISOString()
+      if (existing) {
+        await tx
+          .update(gradingRecords)
+          .set({ overallFeedback: input.overallFeedback, savedAt: now })
+          .where(eq(gradingRecords.id, id))
+        await tx
+          .delete(criterionScores)
+          .where(eq(criterionScores.gradingRecordId, id))
+      } else {
+        await tx.insert(gradingRecords).values({
+          id,
+          submissionId,
+          overallFeedback: input.overallFeedback,
+          savedAt: now,
+          createdAt: now,
+        })
+      }
+      await tx.insert(criterionScores).values(
+        input.criterionScores.map((score) => ({
+          id: randomUUID(),
+          gradingRecordId: id,
+          ...score,
+        })),
+      )
+      await tx
+        .update(gradingSessions)
+        .set({ reviewConfirmedAt: null, updatedAt: now })
+        .where(eq(gradingSessions.id, sessionId))
+      await tx
+        .delete(canvasPublicationOutcomes)
+        .where(
+          and(
+            eq(canvasPublicationOutcomes.sessionId, sessionId),
+            eq(canvasPublicationOutcomes.submissionId, submissionId),
+          ),
+        )
     })
+    return (await this.getGradingRecord(submissionId))!
   }
 
-  getPublicationOutcome(
+  async listPublicationOutcomes(
+    sessionId: string,
+  ): Promise<CanvasPublicationOutcome[]> {
+    const rows = await this.database
+      .select()
+      .from(canvasPublicationOutcomes)
+      .where(eq(canvasPublicationOutcomes.sessionId, sessionId))
+    const orderedIds = (await this.listSubmissions(sessionId)).map(
+      (submission) => submission.id,
+    )
+    return rows
+      .sort(
+        (a, b) =>
+          orderedIds.indexOf(a.submissionId) -
+          orderedIds.indexOf(b.submissionId),
+      )
+      .map((row) => ({
+        ...row,
+        status: row.status as CanvasPublicationOutcome["status"],
+        publishedAt: row.publishedAt ? iso(row.publishedAt) : null,
+        gradingRecordSavedAt: iso(row.gradingRecordSavedAt),
+      }))
+  }
+
+  async getPublicationOutcome(
     sessionId: string,
     submissionId: string,
-  ): CanvasPublicationOutcome | undefined {
-    return this.#publicationOutcomes.get(sessionId)?.get(submissionId)
+  ): Promise<CanvasPublicationOutcome | undefined> {
+    const [row] = await this.database
+      .select()
+      .from(canvasPublicationOutcomes)
+      .where(
+        and(
+          eq(canvasPublicationOutcomes.sessionId, sessionId),
+          eq(canvasPublicationOutcomes.submissionId, submissionId),
+        ),
+      )
+      .limit(1)
+    return row
+      ? {
+          ...row,
+          status: row.status as CanvasPublicationOutcome["status"],
+          publishedAt: row.publishedAt ? iso(row.publishedAt) : null,
+          gradingRecordSavedAt: iso(row.gradingRecordSavedAt),
+        }
+      : undefined
   }
 
-  savePublicationOutcome(
+  async savePublicationOutcome(
     sessionId: string,
     outcome: CanvasPublicationOutcome,
-  ): CanvasPublicationOutcome {
-    const outcomes =
-      this.#publicationOutcomes.get(sessionId) ??
-      new Map<string, CanvasPublicationOutcome>()
-    outcomes.set(outcome.submissionId, outcome)
-    this.#publicationOutcomes.set(sessionId, outcomes)
+  ): Promise<CanvasPublicationOutcome> {
+    await this.database
+      .insert(canvasPublicationOutcomes)
+      .values({ sessionId, ...outcome })
+      .onConflictDoUpdate({
+        target: [
+          canvasPublicationOutcomes.sessionId,
+          canvasPublicationOutcomes.submissionId,
+        ],
+        set: outcome,
+      })
     return outcome
   }
 
-  listSuggestions(submissionId: string): SuggestedMatch[] {
-    return this.#suggestions.get(submissionId) ?? []
+  async listSuggestions(submissionId: string): Promise<SuggestedMatch[]> {
+    return (
+      await this.database
+        .select()
+        .from(suggestedMatches)
+        .where(eq(suggestedMatches.submissionId, submissionId))
+        .orderBy(asc(suggestedMatches.createdAt))
+    ).map((row) => ({ ...row, createdAt: iso(row.createdAt) }))
   }
 
-  saveSuggestions(
+  async saveSuggestions(
     submissionId: string,
     input: Array<Omit<SuggestedMatch, "id" | "submissionId" | "createdAt">>,
-  ): SuggestedMatch[] {
+  ): Promise<SuggestedMatch[]> {
     const createdAt = new Date().toISOString()
-    const suggestions = input.map((suggestion) => ({
-      ...suggestion,
-      id: randomUUID(),
-      submissionId,
-      createdAt,
-    }))
-    this.#suggestions.set(submissionId, suggestions)
-    return suggestions
+    return this.database.transaction(async (tx) => {
+      await tx
+        .delete(suggestedMatches)
+        .where(eq(suggestedMatches.submissionId, submissionId))
+      if (!input.length) return []
+      return (
+        await tx
+          .insert(suggestedMatches)
+          .values(
+            input.map((suggestion) => ({
+              ...suggestion,
+              id: randomUUID(),
+              submissionId,
+              createdAt,
+            })),
+          )
+          .returning()
+      ).map((row) => ({ ...row, createdAt: iso(row.createdAt) }))
+    })
+  }
+
+  async createJob(
+    sessionId: string,
+    type: AsyncJob["type"],
+    totalItems: number,
+  ): Promise<AsyncJob> {
+    const [row] = await this.database
+      .insert(asyncJobs)
+      .values({
+        id: randomUUID(),
+        sessionId,
+        type,
+        status: "pending",
+        totalItems,
+      })
+      .returning()
+    return mapJob(row)
+  }
+
+  async getJob(id: string): Promise<AsyncJob | undefined> {
+    const [row] = await this.database
+      .select()
+      .from(asyncJobs)
+      .where(eq(asyncJobs.id, id))
+      .limit(1)
+    return row ? mapJob(row) : undefined
+  }
+
+  async listOpenJobs(): Promise<AsyncJob[]> {
+    return (
+      await this.database
+        .select()
+        .from(asyncJobs)
+        .where(inArray(asyncJobs.status, ["pending", "running"]))
+        .orderBy(asc(asyncJobs.createdAt))
+    ).map(mapJob)
+  }
+
+  async updateJob(
+    id: string,
+    update: JobUpdate,
+  ): Promise<AsyncJob | undefined> {
+    const [row] = await this.database
+      .update(asyncJobs)
+      .set({ ...update, updatedAt: new Date().toISOString() })
+      .where(eq(asyncJobs.id, id))
+      .returning()
+    return row ? mapJob(row) : undefined
   }
 }

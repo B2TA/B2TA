@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useState, type FormEvent } from "react"
+import { useState, type ChangeEvent, type FormEvent } from "react"
 import { Link, useParams } from "react-router"
 
 import api, { ApiError } from "../api"
@@ -38,6 +38,34 @@ type SubmissionBatchSummary = {
 type SubmissionBatch = {
   summary: SubmissionBatchSummary
   submissions: Submission[]
+}
+
+type RubricCsvPreview = {
+  rubricName: string
+  sourceFormat: "csv"
+  criteria: Array<{
+    title: string
+    description: string
+    maxPoints: number
+    performanceLevels: Array<{
+      label: string
+      description: string
+      points: number
+    }>
+  }>
+  warnings: string[]
+}
+
+type SubmissionUpload = {
+  submission: Submission
+  uploadUrl: string
+}
+
+type IngestJob = {
+  id: string
+  status: "pending" | "running" | "completed" | "failed"
+  completedItems: number
+  failedItems: number
 }
 
 function summarizeSubmissions(
@@ -93,7 +121,7 @@ function SubmissionBatchSummaryView({ summary, submissions }: SubmissionBatch) {
             Submission batch
           </p>
           <h2 className="mt-2 text-2xl font-bold" id="submissions-heading">
-            Canvas roster imported
+            Submission batch ready
           </h2>
         </div>
         <p className="font-mono text-xs text-slate-500">
@@ -193,7 +221,9 @@ function RubricSummary({ rubric }: { rubric: Rubric }) {
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-700">
-            Imported from Canvas
+            {rubric.sourceFormat === "canvas"
+              ? "Imported from Canvas"
+              : "Standalone rubric"}
           </p>
           <h2
             className="mt-2 text-2xl font-bold tracking-tight"
@@ -259,6 +289,11 @@ export default function SessionSetupPage() {
   const [assignmentId, setAssignmentId] = useState("")
   const [batchSummary, setBatchSummary] =
     useState<SubmissionBatchSummary | null>(null)
+  const [rubricPreview, setRubricPreview] = useState<RubricCsvPreview | null>(
+    null,
+  )
+  const [pdfFiles, setPdfFiles] = useState<File[]>([])
+  const [studentNames, setStudentNames] = useState<string[]>([])
 
   const sessionQuery = useQuery({
     queryKey: ["sessions", id],
@@ -329,6 +364,76 @@ export default function SessionSetupPage() {
       )
     },
   })
+  const previewRubric = useMutation({
+    mutationFn: async (file: File) =>
+      api.post<RubricCsvPreview>(`/sessions/${id}/rubric/import/preview`, {
+        format: "canvas_csv",
+        csv: await file.text(),
+      }),
+    onSuccess: setRubricPreview,
+  })
+  const saveRubric = useMutation({
+    mutationFn: () => api.put<Rubric>(`/sessions/${id}/rubric`, rubricPreview),
+    onSuccess: (rubric) => {
+      queryClient.setQueryData(["sessions", id, "rubric"], rubric)
+      setRubricPreview(null)
+    },
+  })
+  const uploadSubmissions = useMutation({
+    mutationFn: async () => {
+      const prepared = await api.post<{ uploads: SubmissionUpload[] }>(
+        `/sessions/${id}/submission-uploads`,
+        {
+          files: pdfFiles.map((file, index) => ({
+            filename: file.name,
+            size: file.size,
+            studentDisplayName: studentNames[index],
+          })),
+        },
+      )
+      await Promise.all(
+        prepared.uploads.map(async (upload, index) => {
+          const response = await fetch(upload.uploadUrl, {
+            method: "PUT",
+            headers: { "Content-Type": "application/pdf" },
+            body: pdfFiles[index],
+          })
+          if (!response.ok) throw new Error("PDF upload failed")
+        }),
+      )
+      let job = await api.post<IngestJob>(
+        `/sessions/${id}/submission-import-jobs`,
+      )
+      while (job.status === "pending" || job.status === "running") {
+        await new Promise((resolve) => window.setTimeout(resolve, 500))
+        job = await api.get<IngestJob>(`/jobs/${job.id}`)
+      }
+      if (job.status === "failed") throw new Error("PDF extraction failed")
+      return api.get<Submission[]>(`/sessions/${id}/submissions`)
+    },
+    onSuccess: (submissions) => {
+      queryClient.setQueryData(["sessions", id, "submissions"], submissions)
+      setBatchSummary(summarizeSubmissions(submissions))
+      setPdfFiles([])
+      setStudentNames([])
+    },
+  })
+
+  function handlePdfFiles(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? [])
+    setPdfFiles(files)
+    setStudentNames(
+      files.map((file) => file.name.replace(/\.pdf$/i, "").trim()),
+    )
+  }
+
+  if (sessionQuery.isPending) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-slate-100 font-mono text-xs uppercase tracking-[0.18em] text-slate-500">
+        Loading session…
+      </main>
+    )
+  }
 
   function handleConnect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -365,10 +470,133 @@ export default function SessionSetupPage() {
             {sessionQuery.data?.name ?? "Prepare grading session"}
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-600">
-            Connect the Canvas assignment that owns the rubric and submissions.
-            B2TA keeps the grading work here.
+            Import a rubric CSV and upload PDFs directly. Canvas is optional and
+            can be connected later.
           </p>
         </div>
+
+        <section
+          aria-labelledby="standalone-heading"
+          className="mb-12 border border-slate-300 bg-white p-6 sm:p-8"
+        >
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-700">
+            Recommended · no LMS required
+          </p>
+          <h2 className="mt-2 text-2xl font-bold" id="standalone-heading">
+            Upload rubric and submissions
+          </h2>
+          <div className="mt-7 grid gap-8 lg:grid-cols-2">
+            <div>
+              <label className="grid gap-2 text-sm font-semibold">
+                Canvas-format rubric CSV
+                <input
+                  accept=".csv,text/csv"
+                  className="min-h-12 border border-slate-300 p-3 font-normal"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0]
+                    if (file) previewRubric.mutate(file)
+                  }}
+                  type="file"
+                />
+              </label>
+              <a
+                className="mt-2 inline-block text-xs font-semibold text-amber-700 hover:underline"
+                download
+                href="/templates/canvas-rubric-template.csv"
+              >
+                Download example rubric CSV
+              </a>
+              {rubricPreview ? (
+                <div className="mt-4 border-l-4 border-emerald-600 bg-emerald-50 p-4 text-sm">
+                  <p className="font-semibold">
+                    {rubricPreview.rubricName} · {rubricPreview.criteria.length}{" "}
+                    criteria
+                  </p>
+                  {rubricPreview.warnings.map((warning) => (
+                    <p className="mt-2 text-amber-800" key={warning}>
+                      {warning}
+                    </p>
+                  ))}
+                  <button
+                    className="mt-4 bg-slate-950 px-4 py-2 font-semibold text-white disabled:opacity-50"
+                    disabled={saveRubric.isPending}
+                    onClick={() => saveRubric.mutate()}
+                    type="button"
+                  >
+                    Save rubric
+                  </button>
+                </div>
+              ) : null}
+              {previewRubric.isError || saveRubric.isError ? (
+                <p
+                  className="mt-3 text-sm font-semibold text-red-700"
+                  role="alert"
+                >
+                  The rubric could not be imported. Check its Canvas CSV format.
+                </p>
+              ) : null}
+            </div>
+
+            <div>
+              <label className="grid gap-2 text-sm font-semibold">
+                Student PDFs
+                <input
+                  accept="application/pdf,.pdf"
+                  className="min-h-12 border border-slate-300 p-3 font-normal"
+                  multiple
+                  onChange={handlePdfFiles}
+                  type="file"
+                />
+              </label>
+              {pdfFiles.length > 0 ? (
+                <div className="mt-4 grid gap-3">
+                  {pdfFiles.map((file, index) => (
+                    <label
+                      className="grid gap-1 text-xs"
+                      key={`${file.name}-${index}`}
+                    >
+                      Student name for {file.name}
+                      <input
+                        className="min-h-10 border border-slate-300 px-3 text-sm"
+                        onChange={(event) =>
+                          setStudentNames((names) =>
+                            names.map((name, nameIndex) =>
+                              nameIndex === index ? event.target.value : name,
+                            ),
+                          )
+                        }
+                        value={studentNames[index] ?? ""}
+                      />
+                    </label>
+                  ))}
+                  <button
+                    className="mt-2 min-h-12 w-fit bg-amber-600 px-6 text-sm font-semibold text-white disabled:opacity-50"
+                    disabled={
+                      uploadSubmissions.isPending ||
+                      studentNames.some((name) => !name.trim())
+                    }
+                    onClick={() => uploadSubmissions.mutate()}
+                    type="button"
+                  >
+                    {uploadSubmissions.isPending
+                      ? "Uploading and extracting…"
+                      : `Upload ${pdfFiles.length} PDF${
+                          pdfFiles.length === 1 ? "" : "s"
+                        }`}
+                  </button>
+                </div>
+              ) : null}
+              {uploadSubmissions.isError ? (
+                <p
+                  className="mt-3 text-sm font-semibold text-red-700"
+                  role="alert"
+                >
+                  The PDFs could not be prepared. Retry the upload.
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </section>
 
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_18rem]">
           <section aria-labelledby="canvas-connect-heading">
