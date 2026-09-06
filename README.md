@@ -1,13 +1,11 @@
 # B2TA — Back to TA
 
-**A standalone, AI-assisted grading workspace for teaching assistants.** B2TA reads a
+**AI-assisted grading workspace for teaching assistants.** B2TA reads a
 student submission, cross-references it against the assignment rubric, and shows the TA
 the exact passages relevant to each criterion—so grading becomes verifying evidence
 instead of reconstructing it from a blank page.
 
 Built for the UBC CIC Summer 2026 Hackathon (theme: *Student Success Tools*).
-
-**Live demo:** https://main.dpezcexvnbo0g.amplifyapp.com
 
 ## Product boundary
 
@@ -30,6 +28,10 @@ LMS connectivity removes the need to download submissions and re-enter grades ma
 
 The boundary and vocabulary are recorded in [CONTEXT.md](./CONTEXT.md) and
 [ADR 0001](./docs/adr/0001-standalone-product-with-lms-adapters.md).
+The durable serverless direction is recorded in
+[ADR 0002](./docs/adr/0002-durable-portable-serverless-core.md), with ordered work in
+[the implementation TODO](./docs/implementation-todo.md) and supporting research in
+[the serverless and standalone research note](./docs/serverless-and-standalone-research.md).
 
 ## The problem
 
@@ -60,14 +62,11 @@ anchored to evidence from their own work.
 
 ## Architecture
 
-The application has two runtime pieces: the React SPA and one Express/TypeScript backend
-process. The frontend calls `/api`; during local development Vite proxies those requests
-to the backend. All grading features, file processing, AI calls, and LMS adapters belong
-inside that backend monolith as ordinary modules.
-
-The backend uses an in-memory store so the frontend has a real HTTP contract without
-committing to production infrastructure too early. State resets whenever the backend
-restarts. Durable persistence and production file storage are not implemented yet.
+The application currently has two runtime pieces: the React SPA and one
+Express/TypeScript development host. The frontend calls `/api`; during local development
+Vite proxies those requests to the backend. PostgreSQL stores canonical metadata and job
+state. PDFs are uploaded directly to S3 through short-lived signed URLs and PostgreSQL
+stores only their object keys.
 
 The current product scope is a trusted, single-user application. B2TA does not require a
 login or multi-user authorization for this phase. If it becomes a shared deployment,
@@ -77,10 +76,11 @@ access.
 | Layer | Technology |
 |---|---|
 | Frontend | React 19, Vite 8, Tailwind CSS v4 — Amplify Hosting |
-| Backend | Express 5 and TypeScript — one monolithic process |
-| Current state | In-memory store for sessions, rubrics, submissions, grading records, PDF artifacts, evidence suggestions, review confirmation, and Canvas publication outcomes |
+| Backend | Express 5 and TypeScript development host; Fetch-shaped portable host is Milestone 2 |
+| Metadata | PostgreSQL 18 with Drizzle as a narrow typed SQL/schema layer |
+| Documents | S3 through a provider-neutral `ObjectStore`; direct browser uploads |
 | AI runtime | AWS Bedrock with Claude Sonnet 4.6, called from the backend monolith |
-| Planned modules | Durable persistence |
+| Planned modules | Fetch HTTP host, Lambda and Worker compositions, job dispatcher |
 | LMS integration | Provider-neutral adapter boundary; Canvas first |
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the system and integration boundaries.
@@ -91,8 +91,9 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the system and integration boundari
 |---|---|
 | Session dashboard | Active routed frontend with real API-backed list, create, resume, and delete flows |
 | Marking workspace | Real PDF-and-rubric grading with TA-authored scores and feedback |
-| Backend monolith | Express API with sessions, rubrics, Canvas submission batches, PDF delivery, and grading records |
-| Backend persistence | Not implemented; current state is local and in memory |
+| Backend API | Express API with standalone and Canvas import paths, grading, review, and CSV export |
+| Backend persistence | PostgreSQL metadata and durable job progress through committed Drizzle migrations |
+| Standalone import | Canvas-format rubric CSV preview/import plus direct-to-S3 PDF batches |
 | Canvas API feasibility | Verified against the hackathon Canvas instance |
 | Canvas connection | Personal access token validation, course/assignment selection, and rubric import implemented |
 | Canvas submissions | Roster, attempts, text entries, missing work, PDF display, and embedded-text extraction implemented |
@@ -117,16 +118,25 @@ mise exec -- pnpm dev
 Plain `pnpm` may use a different global Node version and rewrite the lockfile, so prefer
 `mise exec -- pnpm`.
 
-Run the backend in a second terminal:
+Start PostgreSQL, apply the committed migrations, and run the backend in a second
+terminal. The example bucket is already private, versioned, encrypted, and configured
+for local upload CORS; AWS credentials still need access to it.
 
 ```bash
+docker compose up -d postgres
 pnpm --dir backend install
-pnpm run dev:api
+DATABASE_URL=postgresql://b2ta:b2ta@localhost:5432/b2ta \
+  pnpm --dir backend db:migrate
+DATABASE_URL=postgresql://b2ta:b2ta@localhost:5432/b2ta \
+AWS_REGION=us-west-2 \
+DOCUMENT_BUCKET=b2ta-document-144410073872-us-west-2-an \
+  pnpm run dev:api
 ```
 
 The SPA runs on port `8443` by default, the API runs on port `3001`, and Vite proxies
 `/api` to the API process. Use `pnpm run build:api` and `pnpm run test:api` to validate
-the backend.
+the backend. Use the downloadable rubric template in the setup screen with any of the
+PDFs under `test-data/` to exercise the workflow without Canvas credentials.
 
 ### Deploying the frontend
 

@@ -10,22 +10,20 @@ the product.
 flowchart LR
     TA[TA browser] --> SPA[React SPA]
     SPA -->|JSON over /api| API[Express and TypeScript monolith]
-    API --> STORE[In-memory store]
+    API --> DB[PostgreSQL metadata]
+    SPA -->|signed PUT| OBJECTS[S3 documents]
+    API --> OBJECTS
 
     API --> CANVAS[Canvas adapter]
     API --> AI[AWS Bedrock Claude Sonnet 4.6]
-    API --> FILES[PDF ingestion]
-    API -. future replacement .-> DATA[Durable persistence]
+    API --> FILES[Durable PDF ingestion jobs]
 ```
 
-There is one backend process and one deployment unit. HTTP routes, domain logic, storage
-access, file processing, AI assistance, and LMS adapters live in the same application and
-may be separated into modules as they are implemented. The current code does not use
-background queues or independently deployed services.
-
-The current `MemoryStore` is intentionally temporary. It holds grading sessions, rubrics,
-submissions, grading records, and validated evidence suggestions, and all state resets on
-process restart. Durable persistence and grade publication remain future vertical slices.
+The current Express process is a local development host. Canonical metadata, grading
+records, review state, external links, publication outcomes, and ingestion jobs live in
+PostgreSQL. PDF bytes live in object storage. The next runtime milestone replaces the
+Express-specific HTTP edge with a Fetch-shaped application and thin Lambda and Worker
+hosts; it does not change these persistence boundaries.
 
 The current deployment model has one trusted operator. It has no login or multi-user
 authorization boundary. Authentication becomes required only if B2TA is opened to
@@ -75,8 +73,9 @@ The backend stays monolithic while keeping clear internal ownership:
 |---|---|---|
 | HTTP API | Request validation, response formatting, and frontend contract | Initial routes implemented |
 | Grading core | Sessions, rubrics, submissions, evidence, scores, feedback, and review | Sessions, rubrics, and Canvas submission batches started |
-| Persistence | Store and retrieve canonical state | In-memory implementation only |
-| File ingestion | Accept files and normalize their text | Canvas PDFs retained for inline display and parsed for embedded text; scanned, encrypted, and unreadable files classified |
+| Persistence | Store and retrieve canonical state | PostgreSQL through Drizzle and `pg`; committed migrations |
+| Object storage | Issue signed URLs and retrieve/delete documents | S3 implementation behind `ObjectStore` |
+| File ingestion | Accept files and normalize their text | Persisted per-batch job state; PDF extraction records per-file outcomes |
 | AI assistance | Suggest evidence without assigning scores | Bedrock Claude Sonnet 4.6 integration implemented |
 | LMS adapters | Import external data and publish reviewed results | Canvas PAT, rubric, roster, attempt, text-entry, and PDF import implemented |
 
@@ -130,11 +129,14 @@ payloads belong only to the Canvas adapter.
 | Decision | Rationale |
 |---|---|
 | Standalone product with LMS adapters | B2TA owns a consistent grading workflow while supporting Canvas first and other LMSs later. |
-| One Express/TypeScript backend | A single process is the smallest architecture that supports frontend integration and rapid iteration. |
-| In-memory storage for the first slice | It establishes the HTTP contract before a durable data model is chosen. |
+| Express as the temporary local host | It keeps existing development working while the Fetch-shaped host is implemented separately. |
+| PostgreSQL plus object storage | Metadata and restart-safe work are durable; large PDFs bypass serverless request limits. |
+| Drizzle without a broad repository abstraction | Typed schema/SQL with one production persistence behavior and no `MemoryStore`. |
 | Canonical models plus external links | Provider payloads can evolve without leaking through the grading core. |
 | TA-authored scores only | AI assistance speeds evidence review without transferring grading authority. |
 | Review before export or publication | The TA has an explicit checkpoint before results leave B2TA. |
 
 See [ADR 0001](./docs/adr/0001-standalone-product-with-lms-adapters.md) for the product
-boundary decision.
+boundary decision. See [ADR 0002](./docs/adr/0002-durable-portable-serverless-core.md)
+for the durable serverless direction and [the implementation TODO](./docs/implementation-todo.md)
+for the ordered work.
